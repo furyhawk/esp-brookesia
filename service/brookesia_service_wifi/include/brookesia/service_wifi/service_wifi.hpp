@@ -5,14 +5,20 @@
  */
 #pragma once
 
+#include <cstdint>
 #include <expected>
+#include <queue>
+#include <span>
 #include <string>
+#include "brookesia/hal_interface/interfaces/wifi/basic.hpp"
+#include "brookesia/hal_interface/interfaces/wifi/softap.hpp"
+#include "brookesia/hal_interface/interfaces/wifi/sta.hpp"
 #include "brookesia/lib_utils/describe_helpers.hpp"
 #include "brookesia/lib_utils/task_scheduler.hpp"
 #include "brookesia/service_helper/wifi.hpp"
 #include "brookesia/service_manager/service/base.hpp"
 #include "brookesia/service_manager/macro_configs.h"
-#include "brookesia/service_wifi/hal/hal.hpp"
+#include "brookesia/service_wifi/hal/type.hpp"
 #include "brookesia/service_wifi/state_machine.hpp"
 #include "brookesia/service_wifi/macro_configs.h"
 
@@ -23,8 +29,6 @@ namespace esp_brookesia::service::wifi {
  */
 class Wifi : public ServiceBase {
     friend class StateMachine;
-    friend class Hal;
-    friend class SoftAp;
 
 public:
     /**
@@ -186,11 +190,18 @@ private:
     bool publish_general_event(GeneralEvent event, bool is_unexpected);
     bool publish_general_action(GeneralAction action);
     bool publish_scan_state_changed(bool is_running);
-    bool publish_scan_ap_infos(std::span<const ScanApInfo> &ap_infos);
+    bool publish_scan_ap_infos(std::span<const ScanApInfo> ap_infos);
     bool publish_softap_event(SoftApEvent event);
 
     bool on_hal_general_event(GeneralEvent event, bool is_unexpected);
     bool on_hal_error_state();
+    bool handle_hal_general_event_policy(GeneralEvent event, bool is_unexpected, bool was_connecting);
+    bool handle_scan_ap_infos_policy(std::span<const ScanApInfo> ap_infos);
+    bool configure_hal_interfaces();
+    void clear_hal_interface_callbacks();
+    bool dispatch_general_action(GeneralAction action);
+    bool is_general_action_running(GeneralAction action);
+    bool is_general_event_ready(GeneralEvent event);
 
     void try_load_data();
     void try_save_data(DataType type);
@@ -200,13 +211,13 @@ private:
     constexpr auto &get_data()
     {
         if constexpr (type == DataType::LastAp) {
-            return hal_->get_last_connected_ap_info();
+            return sta_iface_->get_last_connected_ap_info();
         } else if constexpr (type == DataType::ConnectedAps) {
-            return hal_->get_connected_ap_infos();
+            return sta_iface_->get_connected_ap_infos();
         } else if constexpr (type == DataType::ScanParams) {
-            return hal_->get_scan_params();
+            return sta_iface_->get_scan_params();
         } else if constexpr (type == DataType::SoftApParams) {
-            return hal_->get_softap_params();
+            return softap_iface_->get_softap_params();
         } else {
             static_assert(false, "Invalid data type");
         }
@@ -214,6 +225,11 @@ private:
     template<DataType type>
     bool set_data(const auto &data, bool is_force = false, bool is_skip_save = false)
     {
+        if constexpr (type == DataType::SoftApParams) {
+            if (!softap_iface_) {
+                return false;
+            }
+        }
         // If the data is the same, skip
         if (!is_force && (get_data<type>() == data)) {
             return true;
@@ -221,13 +237,13 @@ private:
         // Otherwise, set the data and save to NVS
         bool result = false;
         if constexpr (type == DataType::LastAp) {
-            result = hal_->set_last_connected_ap_info(data);
+            result = sta_iface_->set_last_connected_ap_info(data);
         } else if constexpr (type == DataType::ConnectedAps) {
-            result = hal_->set_connected_ap_infos(data);
+            result = sta_iface_->set_connected_ap_infos(data);
         } else if constexpr (type == DataType::ScanParams) {
-            result = hal_->set_scan_params(data);
+            result = sta_iface_->set_scan_params(data);
         } else if constexpr (type == DataType::SoftApParams) {
-            result = hal_->set_softap_params(data);
+            result = softap_iface_->set_softap_params(data);
         } else {
             static_assert(false, "Invalid data type");
         }
@@ -247,14 +263,33 @@ private:
     void make_general_action_ready_queue(GeneralAction action);
     bool trigger_general_action(const GeneralAction &action);
 
-    bool is_data_loaded_ = false;
+    bool is_auto_connect_allowed();
+    bool schedule_auto_connect();
+    void stop_auto_connect_task();
+    bool trigger_auto_connect();
+    bool trigger_connect_to_ap(const ConnectApInfo &ap_info);
+    bool get_connectable_ap_info_by_ssid(const std::string &ssid, ConnectApInfo &ap_info);
+    bool get_last_connectable_ap_info(ConnectApInfo &ap_info);
+    bool mark_ap_connectable(const ConnectApInfo &ap_info, bool connectable);
+    bool add_connected_ap_info(const ConnectApInfo &ap_info);
+    bool update_connected_ap_info();
+    bool handle_unexpected_disconnected(bool was_connecting);
 
-    std::shared_ptr<Hal> hal_;
+    bool is_data_loaded_ = false;
+    bool auto_connect_disabled_ = false;
+    bool softap_provision_running_ = false;
+
+    std::shared_ptr<hal::WifiBasicIface> basic_iface_;
+    std::shared_ptr<hal::WifiStaIface> sta_iface_;
+    std::shared_ptr<hal::WifiSoftApIface> softap_iface_;
     std::unique_ptr<StateMachine> state_machine_;
 
+    ConnectApInfo connecting_ap_info_{};
+    uint8_t connect_retries_ = 0;
     std::queue<GeneralAction> general_action_pending_queue_;
     std::queue<GeneralAction> general_action_ready_queue_;
     lib_utils::TaskScheduler::TaskId general_action_queue_processing_task_ = 0;
+    lib_utils::TaskScheduler::TaskId auto_connect_task_ = 0;
 };
 
 BROOKESIA_DESCRIBE_ENUM(Wifi::DataType, LastAp, ConnectedAps, ScanParams, SoftApParams, Max);

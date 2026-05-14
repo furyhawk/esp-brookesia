@@ -5,13 +5,27 @@
  */
 #pragma once
 
-#include "sdkconfig.h"
+#if defined(ESP_PLATFORM)
+#   include "sdkconfig.h"
+#endif
 #include "brookesia/service_manager/macro_configs.h"
 
 /**
  * @brief Default log tag used by the NVS service component.
  */
 #define BROOKESIA_SERVICE_NVS_LOG_TAG "SvcNVS"
+
+#if !defined(BROOKESIA_SERVICE_NVS_VER_MAJOR)
+#   define BROOKESIA_SERVICE_NVS_VER_MAJOR  (0)
+#endif
+
+#if !defined(BROOKESIA_SERVICE_NVS_VER_MINOR)
+#   define BROOKESIA_SERVICE_NVS_VER_MINOR  (7)
+#endif
+
+#if !defined(BROOKESIA_SERVICE_NVS_VER_PATCH)
+#   define BROOKESIA_SERVICE_NVS_VER_PATCH  (4)
+#endif
 
 /**
  * @brief Enable automatic plugin registration for the NVS service component.

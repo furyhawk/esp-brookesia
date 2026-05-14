@@ -11,7 +11,20 @@ dependencies:
 
   espressif/esp_board_manager:
     version: "0.5.*"
-    require: private
+    require: no
+
+  # Remote WiFi support for ESP32-P4
+  espressif/esp_wifi_remote:
+    version: ">=0.10,<2.0"
+    require: no
+    rules:
+      - if: "target in [esp32p4, esp32h2]"
+  # TODO: workaround for the compatibility issue of the `v2.12.5` version
+  espressif/esp_hosted:
+    version: "2.12.3"
+    require: no
+    rules:
+      - if: "target in [esp32p4, esp32h2]"
 
 examples:
   - path: ../../examples/agent/chatbot

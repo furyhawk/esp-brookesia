@@ -9,6 +9,8 @@
 #include <string>
 #define BROOKESIA_LOG_TAG "Main"
 #include "brookesia/lib_utils.hpp"
+#include "brookesia/hal_interface.hpp"
+#include "brookesia/hal_adaptor.hpp"
 #include "brookesia/service_manager.hpp"
 #include "brookesia/service_helper/wifi.hpp"
 
@@ -53,6 +55,18 @@ static bool demo_wifi_reset_data();
 extern "C" void app_main(void)
 {
     BROOKESIA_LOGI("\n\n=== Wifi Service Example ===\n");
+
+    BROOKESIA_CHECK_FALSE_EXIT(
+        hal::init_device(hal::StorageDevice::DEVICE_NAME), "Failed to initialize storage HAL device"
+    );
+    lib_utils::FunctionGuard storage_hal_shutdown_guard([]() {
+        hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
+    });
+
+    BROOKESIA_CHECK_FALSE_EXIT(hal::init_device(hal::WifiDevice::DEVICE_NAME), "Failed to initialize WiFi HAL device");
+    lib_utils::FunctionGuard wifi_hal_shutdown_guard([]() {
+        hal::deinit_device(hal::WifiDevice::DEVICE_NAME);
+    });
 
     // Initialize ServiceManager
     auto &service_manager = service::ServiceManager::get_instance();

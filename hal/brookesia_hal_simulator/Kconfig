@@ -1,0 +1,79 @@
+menu "ESP-Brookesia: HAL Simulator Configurations"
+    menuconfig BROOKESIA_HAL_SIMULATOR_ENABLE_DEBUG_LOG
+        bool "Enable debug or lower level logs"
+        default n
+
+    if BROOKESIA_HAL_SIMULATOR_ENABLE_DEBUG_LOG
+        config BROOKESIA_HAL_SIMULATOR_GENERAL_DEVICE_ENABLE_DEBUG_LOG
+            bool "General device"
+            default n
+            help
+                Enable debug or lower level logs for the simulated general device.
+
+        config BROOKESIA_HAL_SIMULATOR_AUDIO_DEVICE_ENABLE_DEBUG_LOG
+            bool "Audio device"
+            default n
+            help
+                Enable debug or lower level logs for the simulated audio device.
+
+        config BROOKESIA_HAL_SIMULATOR_DISPLAY_DEVICE_ENABLE_DEBUG_LOG
+            bool "Display device"
+            default n
+            help
+                Enable debug or lower level logs for the simulated display device.
+
+        config BROOKESIA_HAL_SIMULATOR_POWER_DEVICE_ENABLE_DEBUG_LOG
+            bool "Power device"
+            default n
+            help
+                Enable debug or lower level logs for the simulated power device.
+
+        config BROOKESIA_HAL_SIMULATOR_WIFI_DEVICE_ENABLE_DEBUG_LOG
+            bool "Wi-Fi device"
+            default n
+            help
+                Enable debug or lower level logs for the simulated Wi-Fi device.
+
+        config BROOKESIA_HAL_SIMULATOR_STORAGE_DEVICE_ENABLE_DEBUG_LOG
+            bool "Storage device"
+            default n
+            help
+                Enable debug or lower level logs for the simulated storage device.
+    endif
+
+    config BROOKESIA_HAL_SIMULATOR_ENABLE_GENERAL_DEVICE
+        bool "General Device"
+        default y
+        help
+            Enable the simulated general device and its board information HAL interface.
+
+    config BROOKESIA_HAL_SIMULATOR_ENABLE_AUDIO_DEVICE
+        bool "Audio Device"
+        default y
+        help
+            Enable the simulated audio device and its player and recorder HAL interfaces.
+
+    config BROOKESIA_HAL_SIMULATOR_ENABLE_DISPLAY_DEVICE
+        bool "Display Device"
+        default y
+        help
+            Enable the simulated display device and its panel, touch, and backlight HAL interfaces.
+
+    config BROOKESIA_HAL_SIMULATOR_ENABLE_POWER_DEVICE
+        bool "Power Device"
+        default y
+        help
+            Enable the simulated power device and its battery HAL interface.
+
+    config BROOKESIA_HAL_SIMULATOR_ENABLE_WIFI_DEVICE
+        bool "Wi-Fi Device"
+        default y
+        help
+            Enable the simulated Wi-Fi device and its Basic, STA, and SoftAP HAL interfaces.
+
+    config BROOKESIA_HAL_SIMULATOR_ENABLE_STORAGE_DEVICE
+        bool "Storage Device"
+        default y
+        help
+            Enable the simulated storage device and its key-value and file-system HAL interfaces.
+endmenu

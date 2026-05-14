@@ -5,6 +5,10 @@
  */
 #pragma once
 
+#include <array>
+#include <span>
+#include <vector>
+#include "brookesia/hal_interface/interfaces/wifi/types.hpp"
 #include "brookesia/lib_utils/describe_helpers.hpp"
 #include "brookesia/service_helper/base.hpp"
 
@@ -18,31 +22,8 @@ public:
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////// The following are the service specific types and enumerations ///////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /**
-     * @brief General Wi-Fi control actions.
-     */
-    enum class GeneralAction {
-        Init,       /*!< Initialize Wi-Fi resources. */
-        Deinit,     /*!< Deinitialize Wi-Fi resources. */
-        Start,      /*!< Start Wi-Fi subsystem. */
-        Stop,       /*!< Stop Wi-Fi subsystem. */
-        Connect,    /*!< Connect to configured AP. */
-        Disconnect, /*!< Disconnect from current AP. */
-        Max,        /*!< Sentinel value. */
-    };
-
-    /**
-     * @brief General Wi-Fi lifecycle events.
-     */
-    enum class GeneralEvent {
-        Deinited,     /*!< Wi-Fi has been deinitialized. */
-        Inited,       /*!< Wi-Fi has been initialized. */
-        Stopped,      /*!< Wi-Fi has been stopped. */
-        Started,      /*!< Wi-Fi has started. */
-        Disconnected, /*!< Wi-Fi disconnected from AP. */
-        Connected,    /*!< Wi-Fi connected to AP. */
-        Max,          /*!< Sentinel value. */
-    };
+    using GeneralAction = hal::WifiGeneralAction;
+    using GeneralEvent = hal::WifiGeneralEvent;
 
     /**
      * @brief General state for WiFi state machine
@@ -64,145 +45,12 @@ public:
         Max,            /*!< Sentinel value. */
     };
 
-    /**
-     * @brief Target AP connection info.
-     */
-    struct ConnectApInfo {
-        ConnectApInfo() = default;
-        ConnectApInfo(const std::string &ssid, const std::string &password = "")
-            : ssid(ssid)
-            , password(password)
-        {}
-
-        bool operator==(const ConnectApInfo &other) const
-        {
-            return (ssid == other.ssid) && (password == other.password) && (is_connectable == other.is_connectable);
-        }
-
-        bool operator!=(const ConnectApInfo &other) const
-        {
-            return !(*this == other);
-        }
-
-        bool is_valid() const
-        {
-            return !ssid.empty();
-        }
-
-        std::string ssid;        /*!< AP SSID. */
-        std::string password;    /*!< AP password. */
-        bool is_connectable = true; /*!< Whether this AP is considered connectable. */
-    };
-
-    /**
-     * @brief Parameters for periodic AP scanning.
-     */
-    struct ScanParams {
-        bool operator==(const ScanParams &other) const
-        {
-            return (ap_count == other.ap_count) && (interval_ms == other.interval_ms) && (timeout_ms == other.timeout_ms);
-        }
-
-        bool operator!=(const ScanParams &other) const
-        {
-            return !(*this == other);
-        }
-
-        size_t ap_count = 20;         /*!< Maximum number of AP entries to keep. */
-        uint32_t interval_ms = 10000; /*!< Scan interval in milliseconds. */
-        uint32_t timeout_ms = 60000;  /*!< Total scan timeout in milliseconds. */
-    };
-
-    /**
-     * @brief Signal-strength bucket for a scanned AP.
-     */
-    enum class ScanApSignalLevel {
-        LEVEL_0, /*!< RSSI <= -81 dBm. */
-        LEVEL_1, /*!< RSSI in [-80, -71] dBm. */
-        LEVEL_2, /*!< RSSI in [-70, -61] dBm. */
-        LEVEL_3, /*!< RSSI in [-60, -51] dBm. */
-        LEVEL_4, /*!< RSSI >= -50 dBm. */
-    };
-
-    /**
-     * @brief One scanned AP entry.
-     */
-    struct ScanApInfo {
-        /**
-         * @brief Convert RSSI to a signal-level bucket.
-         *
-         * @param[in] rssi RSSI value in dBm.
-         * @return Corresponding `ScanApSignalLevel`.
-         */
-        static ScanApSignalLevel get_signal_level(int rssi)
-        {
-            ScanApSignalLevel signal_level = ScanApSignalLevel::LEVEL_0;
-            if (rssi <= -81) {
-                signal_level = ScanApSignalLevel::LEVEL_0;
-            } else if (rssi <= -71) {
-                signal_level = ScanApSignalLevel::LEVEL_1;
-            } else if (rssi <= -61) {
-                signal_level = ScanApSignalLevel::LEVEL_2;
-            } else if (rssi <= -51) {
-                signal_level = ScanApSignalLevel::LEVEL_3;
-            } else {
-                signal_level = ScanApSignalLevel::LEVEL_4;
-            }
-            return signal_level;
-        }
-
-        std::string ssid;               /*!< AP SSID. */
-        bool is_locked;                 /*!< Whether AP authentication is required. */
-        int rssi;                       /*!< Signal strength in dBm. */
-        ScanApSignalLevel signal_level; /*!< Bucketed signal level derived from RSSI. */
-        uint8_t channel;                /*!< RF channel. */
-    };
-
-    /**
-     * @brief SoftAP runtime configuration.
-     */
-    struct SoftApParams {
-        bool operator==(const SoftApParams &other) const
-        {
-            if ((ssid != other.ssid) || (password != other.password) ||
-                    (channel.has_value() != other.channel.has_value())) {
-                return false;
-            }
-            if (channel.has_value() && (get_channel() != other.get_channel())) {
-                return false;
-            }
-            return true;
-        }
-
-        bool operator!=(const SoftApParams &other) const
-        {
-            return !(*this == other);
-        }
-
-        bool has_channel() const
-        {
-            return channel.has_value();
-        }
-
-        uint8_t get_channel() const
-        {
-            return channel.value();
-        }
-
-        std::string ssid = "";                    /*!< SoftAP SSID. */
-        std::string password = "";                /*!< SoftAP password. */
-        uint8_t max_connection = 4;               /*!< Maximum station connections. */
-        std::optional<uint8_t> channel = std::nullopt; /*!< Optional fixed channel. */
-    };
-
-    /**
-     * @brief SoftAP lifecycle events.
-     */
-    enum class SoftApEvent {
-        Started, /*!< SoftAP started. */
-        Stopped, /*!< SoftAP stopped. */
-        Max,     /*!< Sentinel value. */
-    };
+    using ConnectApInfo = hal::WifiConnectApInfo;
+    using ScanParams = hal::WifiScanParams;
+    using ScanApSignalLevel = hal::WifiScanApSignalLevel;
+    using ScanApInfo = hal::WifiScanApInfo;
+    using SoftApParams = hal::WifiSoftApParams;
+    using SoftApEvent = hal::WifiSoftApEvent;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// The following are the types required by the Base class /////////////////////////////////////
@@ -562,9 +410,21 @@ private:
                 {
                     .name = BROOKESIA_DESCRIBE_TO_STR(EventScanApInfosUpdatedParam::ApInfos),
                     .description = (boost::format("Scanned AP list as a JSON array<object>. Example: %1%")
-                    % BROOKESIA_DESCRIBE_JSON_SERIALIZE(std::vector<ConnectApInfo>({
-                        ConnectApInfo("ssid1", "password1"),
-                        ConnectApInfo("ssid2", "password2")
+                    % BROOKESIA_DESCRIBE_JSON_SERIALIZE(std::vector<ScanApInfo>({
+                        {
+                            .ssid = "ssid1",
+                            .is_locked = true,
+                            .rssi = -45,
+                            .signal_level = ScanApSignalLevel::LEVEL_4,
+                            .channel = 1,
+                        },
+                        {
+                            .ssid = "ssid2",
+                            .is_locked = false,
+                            .rssi = -65,
+                            .signal_level = ScanApSignalLevel::LEVEL_2,
+                            .channel = 6,
+                        },
                     }))).str(),
                     .type = EventItemType::Array
                 }
@@ -654,33 +514,10 @@ public:
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// The following are the describe macros //////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/**
- * @brief  General related
- */
-BROOKESIA_DESCRIBE_ENUM(Wifi::GeneralAction, Init, Deinit, Start, Stop, Connect, Disconnect);
-BROOKESIA_DESCRIBE_ENUM(Wifi::GeneralEvent, Deinited, Inited, Stopped, Started, Disconnected, Connected);
 BROOKESIA_DESCRIBE_ENUM(
     Wifi::GeneralState, Idle, Initing, Inited, Deiniting, Starting, Started, Stopping, Connecting, Connected,
     Disconnecting, Max
 );
-
-/**
- * @brief  Connect related
- */
-BROOKESIA_DESCRIBE_STRUCT(Wifi::ConnectApInfo, (), (ssid, password, is_connectable));
-
-/**
- * @brief  Scan related
- */
-BROOKESIA_DESCRIBE_ENUM(Wifi::ScanApSignalLevel, LEVEL_0, LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4);
-BROOKESIA_DESCRIBE_STRUCT(Wifi::ScanApInfo, (), (ssid, is_locked, rssi, signal_level, channel));
-BROOKESIA_DESCRIBE_STRUCT(Wifi::ScanParams, (), (ap_count, interval_ms, timeout_ms));
-
-/**
- * @brief SoftAP related
- */
-BROOKESIA_DESCRIBE_STRUCT(Wifi::SoftApParams, (), (ssid, password, max_connection, channel));
-BROOKESIA_DESCRIBE_ENUM(Wifi::SoftApEvent, Started, Stopped);
 
 /**
  * @brief  Function related

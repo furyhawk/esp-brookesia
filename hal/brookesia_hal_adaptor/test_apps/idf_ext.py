@@ -75,6 +75,52 @@ def _resolve_manifest_dependency(project_path: str, component_keys):
 
     return default_key, default_version
 
+def _resolve_dependency_from_component_manifest(component_path: Path, component_keys):
+    """Resolve a dependency key/value from an existing component manifest."""
+    manifest_path = next((p for f in MANIFEST_NAMES if (p := component_path / f).exists()), None)
+    if not manifest_path:
+        return None
+
+    try:
+        with open(manifest_path, encoding='utf-8') as f:
+            deps = (yaml.safe_load(f) or {}).get('dependencies', {})
+        found_key = next((k for k in component_keys if k in deps), None)
+        if found_key is None:
+            return None
+
+        dep_value = deps[found_key]
+        if isinstance(dep_value, dict) and "version" in dep_value:
+            dep_value = {"version": dep_value["version"]}
+        return found_key, dep_value
+    except Exception as e:
+        print(f"Warning: Failed to parse {manifest_path}: {e}")
+        return None
+
+def _resolve_bmgr_dependency_for_project(project_path: str):
+    """Resolve esp_board_manager version needed by the project's HAL adaptor."""
+    default_dependency = (BMGR_KEYS[0], "*")
+    deps = _load_manifest_dependencies(project_path)
+    direct_key = next((key for key in BMGR_KEYS if key in deps), None)
+    if direct_key is not None:
+        return direct_key, deps[direct_key]
+
+    hal_adaptor_path = _get_component_override_path(project_path, HAL_ADAPTOR_KEYS)
+    if hal_adaptor_path is None:
+        hal_adaptor_path = _get_managed_component_path(project_path, HAL_ADAPTOR_KEYS)
+    if hal_adaptor_path is None and any(key in deps for key in HAL_ADAPTOR_KEYS):
+        print("== idf_ext: downloading brookesia_hal_adaptor to resolve esp_board_manager dependency")
+        _download_component(project_path, HAL_ADAPTOR_KEYS)
+        hal_adaptor_path = _get_managed_component_path(project_path, HAL_ADAPTOR_KEYS)
+    if hal_adaptor_path is None:
+        return default_dependency
+
+    resolved_dependency = _resolve_dependency_from_component_manifest(hal_adaptor_path, BMGR_KEYS)
+    if resolved_dependency is None:
+        return default_dependency
+
+    print(f"== idf_ext: using esp_board_manager dependency from {hal_adaptor_path / 'idf_component.yml'}")
+    return resolved_dependency
+
 def _download_component(project_path: str, component_keys) -> None:
     """Download a component declared in the project manifest.
 
@@ -94,7 +140,10 @@ def _download_component(project_path: str, component_keys) -> None:
     lock_path = proj / "dependencies.lock"
 
     dependencies = {}
-    component_key, component_dep_value = _resolve_manifest_dependency(project_path, component_keys)
+    if component_keys == BMGR_KEYS:
+        component_key, component_dep_value = _resolve_bmgr_dependency_for_project(project_path)
+    else:
+        component_key, component_dep_value = _resolve_manifest_dependency(project_path, component_keys)
     dependencies[component_key] = component_dep_value
 
     # When boards are downloaded on demand, pull esp_board_manager in the same
@@ -103,7 +152,7 @@ def _download_component(project_path: str, component_keys) -> None:
         bmgr_path = _get_managed_component_path(project_path, BMGR_KEYS)
         needs_bmgr = _has_component(project_path, BMGR_KEYS) or _has_component(project_path, HAL_ADAPTOR_KEYS)
         if bmgr_path is None and needs_bmgr:
-            bmgr_key, bmgr_dep_value = _resolve_manifest_dependency(project_path, BMGR_KEYS)
+            bmgr_key, bmgr_dep_value = _resolve_bmgr_dependency_for_project(project_path)
             dependencies[bmgr_key] = bmgr_dep_value
 
     managed_path.mkdir(parents=True, exist_ok=True)
@@ -187,42 +236,10 @@ def _get_managed_component_path(project_path: str, component_keys):
             return child
     return None
 
-
-def _inject_boards_dir(project_path: str) -> None:
-    """Inject '-c <boards_dir>' into sys.argv when not already present.
-    """
-    if '-c' in sys.argv:
-        return  # already supplied by the caller, nothing to do
-    local_boards = Path(project_path) / 'boards'
-    boards_dir = None
-    if local_boards.is_dir():
-        boards_dir = local_boards
-        print(f'== idf_ext: using local boards directory: {boards_dir}')
-    else:
-        hal_boards_path = _get_component_override_path(project_path, HAL_BOARDS_KEYS)
-        if hal_boards_path is not None:
-            boards_dir = hal_boards_path / 'boards'
-            print(f'== idf_ext: using shared boards directory: {boards_dir}')
-        elif _has_component(project_path, HAL_BOARDS_KEYS):
-            managed_hal_boards = _get_managed_component_path(project_path, HAL_BOARDS_KEYS)
-            if managed_hal_boards is None:
-                _download_component(project_path, HAL_BOARDS_KEYS)
-                managed_hal_boards = _get_managed_component_path(project_path, HAL_BOARDS_KEYS)
-            if managed_hal_boards is not None:
-                boards_dir = managed_hal_boards / 'boards'
-                print(f'== idf_ext: using managed boards directory: {boards_dir}')
-    if boards_dir is not None:
-        sys.argv.extend(['-c', str(boards_dir)])
-    else:
-        print(f'== idf_ext: no boards directory found, skipping boards dir injection')
-        return
-
-
 def action_extensions(base_actions: dict, project_path: str) -> dict:
     bmgr_path = Path(project_path) / "managed_components" / "espressif__esp_board_manager"
 
     if len(sys.argv) > 2 and sys.argv[1] == "gen-bmgr-config":
-        _inject_boards_dir(project_path)
         is_updating = os.getenv("_IDF_EXT_UPDATING_DEPS") == "1"
         shutil.rmtree(Path(project_path) / "components" / "gen_bmgr_codes", ignore_errors=True)
         needs_bmgr = _has_component(project_path, BMGR_KEYS) or _has_component(project_path, HAL_ADAPTOR_KEYS)

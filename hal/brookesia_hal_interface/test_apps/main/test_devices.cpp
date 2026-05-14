@@ -14,12 +14,14 @@
 #include "test_display_touch.hpp"
 #include "test_display_backlight.hpp"
 #include "test_storage_fs.hpp"
+#include "test_storage_kv.hpp"
+#include "test_wifi_common.hpp"
 
 using namespace esp_brookesia;
 
 namespace {
 
-constexpr std::array<const char *, 8> EXPECTED_DEVICE_NAMES = {
+constexpr std::array<const char *, 10> EXPECTED_DEVICE_NAMES = {
     TestAudioPlayerDevice::NAME,
     TestAudioRecorderDevice::NAME,
     TestBatteryDevice::NAME,
@@ -28,9 +30,11 @@ constexpr std::array<const char *, 8> EXPECTED_DEVICE_NAMES = {
     TestDisplayTouchDevice::NAME,
     TestDisplayBacklightDevice::NAME,
     TestStorageFsDevice::NAME,
+    TestStorageKvDevice::NAME,
+    TestWifiDevice::NAME,
 };
 
-constexpr std::array<const char *, 8> EXPECTED_INTERFACE_NAMES = {
+constexpr std::array<const char *, 12> EXPECTED_INTERFACE_NAMES = {
     TestAudioCodecPlayerIface::NAME,
     TestAudioCodecRecorderIface::NAME,
     TestPowerBatteryIface::NAME,
@@ -39,6 +43,10 @@ constexpr std::array<const char *, 8> EXPECTED_INTERFACE_NAMES = {
     TestDisplayTouchIface::NAME,
     TestDisplayBacklightIface::NAME,
     TestStorageFsIface::NAME,
+    TestStorageKvIface::NAME,
+    TestWifiBackend::BASIC_NAME,
+    TestWifiBackend::STA_NAME,
+    TestWifiBackend::SOFTAP_NAME,
 };
 
 } // namespace
@@ -55,6 +63,8 @@ TEST_CASE("Device: init_all_devices initializes all registered test devices and 
     TEST_ASSERT_TRUE(hal::DeviceRegistry::has_plugin(TestDisplayTouchDevice::NAME));
     TEST_ASSERT_TRUE(hal::DeviceRegistry::has_plugin(TestDisplayBacklightDevice::NAME));
     TEST_ASSERT_TRUE(hal::DeviceRegistry::has_plugin(TestStorageFsDevice::NAME));
+    TEST_ASSERT_TRUE(hal::DeviceRegistry::has_plugin(TestStorageKvDevice::NAME));
+    TEST_ASSERT_TRUE(hal::DeviceRegistry::has_plugin(TestWifiDevice::NAME));
 
     const auto devices_before_init = hal::get_all_devices();
     TEST_ASSERT_GREATER_OR_EQUAL(EXPECTED_DEVICE_NAMES.size(), devices_before_init.size());
@@ -74,6 +84,10 @@ TEST_CASE("Device: init_all_devices initializes all registered test devices and 
     TEST_ASSERT_TRUE(hal::InterfaceRegistry::has_plugin(TestDisplayTouchIface::NAME));
     TEST_ASSERT_TRUE(hal::InterfaceRegistry::has_plugin(TestDisplayBacklightIface::NAME));
     TEST_ASSERT_TRUE(hal::InterfaceRegistry::has_plugin(TestStorageFsIface::NAME));
+    TEST_ASSERT_TRUE(hal::InterfaceRegistry::has_plugin(TestStorageKvIface::NAME));
+    TEST_ASSERT_TRUE(hal::InterfaceRegistry::has_plugin(TestWifiBackend::BASIC_NAME));
+    TEST_ASSERT_TRUE(hal::InterfaceRegistry::has_plugin(TestWifiBackend::STA_NAME));
+    TEST_ASSERT_TRUE(hal::InterfaceRegistry::has_plugin(TestWifiBackend::SOFTAP_NAME));
 
     const auto interfaces = hal::get_all_interfaces();
     TEST_ASSERT_GREATER_OR_EQUAL(EXPECTED_INTERFACE_NAMES.size(), interfaces.size());
@@ -98,6 +112,8 @@ TEST_CASE("Device: get_device and get_interface work after init_all_devices", "[
     auto touch_device = hal::get_device_by_device_name(TestDisplayTouchDevice::NAME);
     auto backlight_device = hal::get_device_by_device_name(TestDisplayBacklightDevice::NAME);
     auto storage_device = hal::get_device_by_device_name(TestStorageFsDevice::NAME);
+    auto storage_kv_device = hal::get_device_by_device_name(TestStorageKvDevice::NAME);
+    auto wifi_device = hal::get_device_by_device_name(TestWifiDevice::NAME);
     const auto devices = hal::get_all_devices();
 
     TEST_ASSERT_NOT_NULL(player_device.get());
@@ -108,6 +124,8 @@ TEST_CASE("Device: get_device and get_interface work after init_all_devices", "[
     TEST_ASSERT_NOT_NULL(touch_device.get());
     TEST_ASSERT_NOT_NULL(backlight_device.get());
     TEST_ASSERT_NOT_NULL(storage_device.get());
+    TEST_ASSERT_NOT_NULL(storage_kv_device.get());
+    TEST_ASSERT_NOT_NULL(wifi_device.get());
     TEST_ASSERT_EQUAL_PTR(player_device.get(), devices.at(TestAudioPlayerDevice::NAME).get());
     TEST_ASSERT_EQUAL_PTR(storage_device.get(), devices.at(TestStorageFsDevice::NAME).get());
 
@@ -119,6 +137,10 @@ TEST_CASE("Device: get_device and get_interface work after init_all_devices", "[
     auto touch = touch_device->get_interface<hal::DisplayTouchIface>(TestDisplayTouchIface::NAME);
     auto backlight = backlight_device->get_interface<hal::DisplayBacklightIface>(TestDisplayBacklightIface::NAME);
     auto storage = storage_device->get_interface<hal::StorageFsIface>(TestStorageFsIface::NAME);
+    auto storage_kv = storage_kv_device->get_interface<hal::StorageKvIface>(TestStorageKvIface::NAME);
+    auto wifi_basic = wifi_device->get_interface<hal::WifiBasicIface>(TestWifiBackend::BASIC_NAME);
+    auto wifi_sta = wifi_device->get_interface<hal::WifiStaIface>(TestWifiBackend::STA_NAME);
+    auto wifi_softap = wifi_device->get_interface<hal::WifiSoftApIface>(TestWifiBackend::SOFTAP_NAME);
     const auto interfaces = hal::get_all_interfaces();
 
     TEST_ASSERT_NOT_NULL(player.get());
@@ -129,6 +151,10 @@ TEST_CASE("Device: get_device and get_interface work after init_all_devices", "[
     TEST_ASSERT_NOT_NULL(touch.get());
     TEST_ASSERT_NOT_NULL(backlight.get());
     TEST_ASSERT_NOT_NULL(storage.get());
+    TEST_ASSERT_NOT_NULL(storage_kv.get());
+    TEST_ASSERT_NOT_NULL(wifi_basic.get());
+    TEST_ASSERT_NOT_NULL(wifi_sta.get());
+    TEST_ASSERT_NOT_NULL(wifi_softap.get());
     TEST_ASSERT_EQUAL_PTR(player.get(), std::dynamic_pointer_cast<hal::AudioCodecPlayerIface>(
                               interfaces.at(TestAudioCodecPlayerIface::NAME)).get());
     TEST_ASSERT_EQUAL_PTR(storage.get(), std::dynamic_pointer_cast<hal::StorageFsIface>(
@@ -165,6 +191,10 @@ TEST_CASE("Device: get_capabilities groups interface instances by type name", "[
     TEST_ASSERT_TRUE(capabilities.find(std::string(hal::DisplayTouchIface::NAME)) != capabilities.end());
     TEST_ASSERT_TRUE(capabilities.find(std::string(hal::DisplayBacklightIface::NAME)) != capabilities.end());
     TEST_ASSERT_TRUE(capabilities.find(std::string(hal::StorageFsIface::NAME)) != capabilities.end());
+    TEST_ASSERT_TRUE(capabilities.find(std::string(hal::StorageKvIface::NAME)) != capabilities.end());
+    TEST_ASSERT_TRUE(capabilities.find(std::string(hal::WifiBasicIface::NAME)) != capabilities.end());
+    TEST_ASSERT_TRUE(capabilities.find(std::string(hal::WifiStaIface::NAME)) != capabilities.end());
+    TEST_ASSERT_TRUE(capabilities.find(std::string(hal::WifiSoftApIface::NAME)) != capabilities.end());
 
     TEST_ASSERT_EQUAL_STRING(
         TestAudioCodecPlayerIface::NAME,
@@ -189,6 +219,10 @@ TEST_CASE("Device: has_interface matches interface type names", "[hal][device][c
     TEST_ASSERT_TRUE(hal::has_interface(hal::PowerBatteryIface::NAME));
     TEST_ASSERT_TRUE(hal::has_interface(hal::BoardInfoIface::NAME));
     TEST_ASSERT_TRUE(hal::has_interface(hal::StorageFsIface::NAME));
+    TEST_ASSERT_TRUE(hal::has_interface(hal::StorageKvIface::NAME));
+    TEST_ASSERT_TRUE(hal::has_interface(hal::WifiBasicIface::NAME));
+    TEST_ASSERT_TRUE(hal::has_interface(hal::WifiStaIface::NAME));
+    TEST_ASSERT_TRUE(hal::has_interface(hal::WifiSoftApIface::NAME));
     TEST_ASSERT_FALSE(hal::has_interface("MissingInterface"));
 
     hal::deinit_all_devices();

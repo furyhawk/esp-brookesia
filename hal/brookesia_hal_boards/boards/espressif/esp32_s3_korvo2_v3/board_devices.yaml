@@ -61,6 +61,8 @@ devices:
     version: default
     dependencies:
       espressif/esp_io_expander_tca9554: "^2"
+      brookesia_hal_custom:
+        override_path: "${BOARD_PATH}/components/brookesia_hal_custom"
     config:
       max_pins: 8                      # Maximum number of GPIO pins supported
       output_io_mask: [1, 2, 3]        # List of pins configured as output
@@ -106,7 +108,8 @@ devices:
   # Touch Panel Configuration
   - name: lcd_touch
     chip: tt21100
-    type: lcd_touch_i2c
+    type: lcd_touch
+    sub_type: i2c
     version: default
     dependencies:
       esp_lcd_touch:
@@ -116,10 +119,7 @@ devices:
     config:
       # esp_lcd_panel_io_i2c_config_t fields for touch communication
       io_i2c_config:
-        dev_addr: 0x24
         lcd_cmd_bits: 16                  # Bit-width of LCD command
-        peripherals:
-          - name: i2c_master              # I2C peripheral for touch communication
 
       # esp_lcd_touch_config_t fields for touch configuration
       touch_config:
@@ -129,6 +129,9 @@ devices:
           swap_xy: false
           mirror_x: true
           mirror_y: false
+    peripherals:
+      - name: i2c_master                  # I2C peripheral for touch communication
+        i2c_addr: [0x48]                  # TT21100 I2C address candidates, 8-bit left-shifted
 
   - name: camera
     type: camera

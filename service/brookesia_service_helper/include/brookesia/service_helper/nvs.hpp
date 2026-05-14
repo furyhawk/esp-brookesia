@@ -9,6 +9,7 @@
 #include <span>
 #include <type_traits>
 #include "boost/json.hpp"
+#include "brookesia/hal_interface/interfaces/storage/kv.hpp"
 #include "brookesia/lib_utils/describe_helpers.hpp"
 #include "brookesia/service_helper/base.hpp"
 
@@ -26,30 +27,10 @@ public:
      * They are used as parameter and return types for functions and events.
      * Users can access or modify these types via serialization and deserialization.
      */
-    enum class ValueType {
-        Bool,
-        Int,
-        String,
-        Max,
-    };
-
-    /**
-     * @brief Value type stored in NVS entries.
-     */
-    using Value = std::variant<bool, int32_t, std::string>;
-    /**
-     * @brief Key-value mapping payload for batch set/get operations.
-     */
-    using KeyValueMap = std::map<std::string, Value>;
-
-    /**
-     * @brief Metadata for one entry in an NVS namespace.
-     */
-    struct EntryInfo {
-        std::string nspace; /*!< Namespace name */
-        std::string key;    /*!< Entry key */
-        ValueType type;     /*!< Entry value type */
-    };
+    using ValueType = hal::StorageKvIface::ValueType;
+    using Value = hal::StorageKvIface::Value;
+    using KeyValueMap = hal::StorageKvIface::KeyValueMap;
+    using EntryInfo = hal::StorageKvIface::EntryInfo;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////// The following are the types required by the Base class /////////////////////////////////////
@@ -464,7 +445,5 @@ BROOKESIA_DESCRIBE_ENUM(NVS::FunctionListParam, Nspace);
 BROOKESIA_DESCRIBE_ENUM(NVS::FunctionSetParam, Nspace, KeyValuePairs);
 BROOKESIA_DESCRIBE_ENUM(NVS::FunctionGetParam, Nspace, Keys);
 BROOKESIA_DESCRIBE_ENUM(NVS::FunctionEraseParam, Nspace, Keys);
-BROOKESIA_DESCRIBE_ENUM(NVS::ValueType, Bool, Int, String, Max);
-BROOKESIA_DESCRIBE_STRUCT(NVS::EntryInfo, (), (nspace, key, type));
 
 } // namespace esp_brookesia::service::helper

@@ -11,3 +11,4 @@
 #include "brookesia/hal_adaptor/display/device.hpp"
 #include "brookesia/hal_adaptor/power/device.hpp"
 #include "brookesia/hal_adaptor/storage/device.hpp"
+#include "brookesia/hal_adaptor/wifi/device.hpp"

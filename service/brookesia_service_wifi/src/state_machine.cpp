@@ -61,9 +61,8 @@ bool GeneralStateClass::on_enter(const std::string &from_state, const std::strin
     auto target_action = get_transient_state_target_action();
     BROOKESIA_CHECK_FALSE_RETURN(target_action != GeneralAction::Max, false, "Invalid target action");
 
-    auto hal = context_.get_hal();
-    BROOKESIA_CHECK_NULL_RETURN(hal, false, "HAL is not set");
-    if (!hal->do_general_action(target_action)) {
+    BROOKESIA_CHECK_FALSE_RETURN(static_cast<bool>(context_.action_handler_), false, "Action handler is not set");
+    if (!context_.action_handler_(target_action)) {
         BROOKESIA_LOGE(
             "Do general action '%1%' in '%2%' state failed", BROOKESIA_DESCRIBE_TO_STR(target_action),
             BROOKESIA_DESCRIBE_TO_STR(state_)

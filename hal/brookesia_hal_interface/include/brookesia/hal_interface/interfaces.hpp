@@ -18,3 +18,7 @@
 #include "interfaces/general/board_info.hpp"
 #include "interfaces/power/battery.hpp"
 #include "interfaces/storage/fs.hpp"
+#include "interfaces/storage/kv.hpp"
+#include "interfaces/wifi/basic.hpp"
+#include "interfaces/wifi/softap.hpp"
+#include "interfaces/wifi/sta.hpp"

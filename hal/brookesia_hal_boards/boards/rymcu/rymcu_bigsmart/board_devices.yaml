@@ -145,7 +145,8 @@ devices:
 
   - name: lcd_touch
     chip: gt911
-    type: lcd_touch_i2c
+    type: lcd_touch
+    sub_type: i2c
     version: default
     dependencies:
       esp_lcd_touch:
@@ -154,10 +155,7 @@ devices:
       espressif/esp_lcd_touch_gt911: "*"
     config:
       io_i2c_config:
-        dev_addr: [0x5D, 0x14]
         lcd_cmd_bits: 16
-        peripherals:
-          - name: i2c_master
       touch_config:
         x_max: 240
         y_max: 320
@@ -166,6 +164,9 @@ devices:
           swap_xy: true
           mirror_x: true
           mirror_y: false
+    peripherals:
+      - name: i2c_master
+        i2c_addr: [0xba, 0x28]
 
   - name: lcd_brightness
     type: ledc_ctrl

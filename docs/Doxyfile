@@ -27,6 +27,7 @@ INPUT = \
     $(PROJECT_PATH)/hal/brookesia_hal_adaptor/include/brookesia/hal_adaptor/general/device.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_adaptor/include/brookesia/hal_adaptor/power/device.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_adaptor/include/brookesia/hal_adaptor/storage/device.hpp \
+    $(PROJECT_PATH)/hal/brookesia_hal_adaptor/include/brookesia/hal_adaptor/wifi/device.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/audio/codec_player.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/audio/codec_recorder.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/device.hpp \
@@ -37,6 +38,11 @@ INPUT = \
     $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interface.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/power/battery.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/storage/fs.hpp \
+    $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/storage/kv.hpp \
+    $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/wifi/basic.hpp \
+    $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/wifi/softap.hpp \
+    $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/wifi/sta.hpp \
+    $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface/interfaces/wifi/types.hpp \
     $(PROJECT_PATH)/hal/brookesia_hal_interface/include/brookesia/hal_interface.hpp \
     $(PROJECT_PATH)/service/brookesia_service_audio/include/brookesia/service_audio/service_audio.hpp \
     $(PROJECT_PATH)/service/brookesia_service_audio/include/brookesia/service_audio.hpp \
@@ -77,8 +83,6 @@ INPUT = \
     $(PROJECT_PATH)/service/brookesia_service_video/include/brookesia/service_video/decoder.hpp \
     $(PROJECT_PATH)/service/brookesia_service_video/include/brookesia/service_video/encoder.hpp \
     $(PROJECT_PATH)/service/brookesia_service_video/include/brookesia/service_video.hpp \
-    $(PROJECT_PATH)/service/brookesia_service_wifi/include/brookesia/service_wifi/hal/hal.hpp \
-    $(PROJECT_PATH)/service/brookesia_service_wifi/include/brookesia/service_wifi/hal/softap.hpp \
     $(PROJECT_PATH)/service/brookesia_service_wifi/include/brookesia/service_wifi/hal/type.hpp \
     $(PROJECT_PATH)/service/brookesia_service_wifi/include/brookesia/service_wifi/service_wifi.hpp \
     $(PROJECT_PATH)/service/brookesia_service_wifi/include/brookesia/service_wifi/state_machine.hpp \

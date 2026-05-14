@@ -13,6 +13,8 @@
 #include <vector>
 #define BROOKESIA_LOG_TAG "Main"
 #include "brookesia/lib_utils.hpp"
+#include "brookesia/hal_adaptor/storage/device.hpp"
+#include "brookesia/hal_interface/device.hpp"
 #include "brookesia/service_manager.hpp"
 #include "brookesia/service_helper/nvs.hpp"
 
@@ -47,6 +49,13 @@ static bool demo_error_handling();
 extern "C" void app_main(void)
 {
     BROOKESIA_LOGI("\n\n=== NVS Service Example ===\n");
+
+    BROOKESIA_CHECK_FALSE_EXIT(
+        hal::init_device(hal::StorageDevice::DEVICE_NAME), "Failed to initialize storage HAL device"
+    );
+    lib_utils::FunctionGuard hal_shutdown_guard([]() {
+        hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
+    });
 
     // Initialize ServiceManager
     auto &service_manager = service::ServiceManager::get_instance();

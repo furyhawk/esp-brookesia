@@ -1,10 +1,12 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: CC0-1.0
  */
 #include "unity.h"
 #include "brookesia/lib_utils.hpp"
+#include "brookesia/hal_adaptor/storage/device.hpp"
+#include "brookesia/hal_interface/device.hpp"
 #include "brookesia/service_manager.hpp"
 #include "brookesia/service_helper/nvs.hpp"
 #include "common_def.hpp"
@@ -627,10 +629,23 @@ TEST_CASE("Test NVS Helper - error handling", "[service][nvs][helper][error]")
 
 static bool startup()
 {
-    BROOKESIA_CHECK_FALSE_RETURN(service_manager.start(), false, "Failed to start service manager");
+    BROOKESIA_CHECK_FALSE_RETURN(
+        hal::init_device(hal::StorageDevice::DEVICE_NAME), false, "Failed to initialize storage HAL device"
+    );
+
+    if (!service_manager.start()) {
+        hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
+        BROOKESIA_LOGE("Failed to start service manager");
+        return false;
+    }
 
     nvs_binding = service_manager.bind(NVSHelper::get_name().data());
-    BROOKESIA_CHECK_FALSE_RETURN(nvs_binding.is_valid(), false, "Failed to bind NVS service");
+    if (!nvs_binding.is_valid()) {
+        service_manager.deinit();
+        hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
+        BROOKESIA_LOGE("Failed to bind NVS service");
+        return false;
+    }
 
     return true;
 }
@@ -639,4 +654,5 @@ static void shutdown()
 {
     nvs_binding.release();
     service_manager.deinit();
+    hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
 }

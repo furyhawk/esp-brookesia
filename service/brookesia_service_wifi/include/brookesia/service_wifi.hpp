@@ -10,6 +10,6 @@
  */
 
 #include "service_wifi/macro_configs.h"
-#include "service_wifi/hal/hal.hpp"
+#include "service_wifi/hal/type.hpp"
 #include "service_wifi/state_machine.hpp"
 #include "service_wifi/service_wifi.hpp"

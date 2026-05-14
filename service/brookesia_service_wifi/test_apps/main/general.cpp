@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 #include "unity.h"
+#include "brookesia/hal_adaptor.hpp"
 #include "brookesia/service_helper/nvs.hpp"
 #include "general.hpp"
 
@@ -213,6 +214,8 @@ void EventCollector::setup_event_subscriptions()
 
 void startup()
 {
+    TEST_ASSERT_TRUE_MESSAGE(hal::init_device(hal::WifiDevice::DEVICE_NAME), "Failed to initialize WiFi HAL device");
+
     lib_utils::TimeProfiler::FormatOptions opt;
     opt.use_unicode = true;
     opt.use_color = true;
@@ -244,6 +247,7 @@ void shutdown()
     nvs_binding.release();
     wifi_binding.release();
     service_manager.deinit();
+    hal::deinit_device(hal::WifiDevice::DEVICE_NAME);
     time_profiler.report();
     time_profiler.clear();
 }

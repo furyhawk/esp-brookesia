@@ -5,14 +5,16 @@
  */
 #pragma once
 
+#include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 #include <queue>
 #include "brookesia/lib_utils/describe_helpers.hpp"
 #include "brookesia/lib_utils/state_base.hpp"
 #include "brookesia/lib_utils/state_machine.hpp"
 #include "brookesia/service_helper/wifi.hpp"
-#include "brookesia/service_wifi/hal/hal.hpp"
+#include "brookesia/service_wifi/hal/type.hpp"
 
 namespace esp_brookesia::service::wifi {
 
@@ -34,8 +36,10 @@ class StateMachine  {
 public:
     friend class GeneralStateClass;
 
-    StateMachine(std::shared_ptr<Hal> hal)
-        : hal_(hal)
+    using GeneralActionHandler = std::function<bool(GeneralAction)>;
+
+    StateMachine(GeneralActionHandler action_handler)
+        : action_handler_(std::move(action_handler))
     {}
     ~StateMachine();
 
@@ -59,11 +63,6 @@ public:
 
     GeneralState get_current_state();
 
-    std::shared_ptr<Hal> get_hal() const
-    {
-        return hal_;
-    }
-
     bool is_transient_state();
     bool is_action_running()
     {
@@ -75,7 +74,7 @@ public:
     static GeneralState get_general_event_target_state(GeneralEvent event);
 
 private:
-    std::shared_ptr<Hal> hal_;
+    GeneralActionHandler action_handler_;
     std::unique_ptr<lib_utils::StateMachine> state_machine_;
     std::vector<std::shared_ptr<GeneralStateClass>> state_classes_;
 };

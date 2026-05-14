@@ -6,12 +6,17 @@
 #pragma once
 
 #include <bitset>
-#include <string>
 #include <memory>
+#include <string>
+#include <vector>
 #include "boost/thread/thread.hpp"
-#include "type.hpp"
+#include "brookesia/hal_interface/interfaces/wifi/types.hpp"
+#include "brookesia/lib_utils/describe_helpers.hpp"
+#include "brookesia/lib_utils/task_scheduler.hpp"
 
-namespace esp_brookesia::service::wifi {
+namespace esp_brookesia::hal {
+
+class WifiEspBackend;
 
 enum class SoftApStateFlagBit {
     Setuping,       // SoftAP is setuping
@@ -49,8 +54,8 @@ public:
      */
     bool start_softap();
     void stop_softap();
-    bool set_softap_params(const SoftApParams &params);
-    const SoftApParams &get_softap_params()
+    bool set_softap_params(const WifiSoftApParams &params);
+    const WifiSoftApParams &get_softap_params() const
     {
         return softap_params_;
     }
@@ -62,7 +67,7 @@ public:
         return is_softap_provision_running_;
     }
 
-    bool on_hal_scan_ap_infos_updated(const std::vector<ScanApInfo> &ap_infos);
+    bool on_hal_scan_ap_infos_updated(const std::vector<WifiScanApInfo> &ap_infos);
     bool on_hal_softap_wifi_event(uint8_t event);
     bool on_hal_softap_ip_event(uint8_t event);
 
@@ -82,23 +87,23 @@ public:
     void trigger_provision_connect(const std::string &ssid, const std::string &password);
 
     static std::string get_ap_default_ssid();
-    static uint8_t get_ap_best_channel(const std::vector<ScanApInfo> &ap_infos);
+    static uint8_t get_ap_best_channel(const std::vector<WifiScanApInfo> &ap_infos);
 
 private:
-    bool do_softap_start(const SoftApParams *params = nullptr);
+    bool do_softap_start(const WifiSoftApParams *params = nullptr);
     void do_softap_stop();
 
     bool start_softap_setup_task();
     void stop_softap_setup_task();
-    bool start_softap_event_task(SoftApEvent event);
+    bool start_softap_event_task(WifiSoftApEvent event);
     void stop_softap_event_task();
     bool is_softap_setup_task_running()
     {
         return (softap_setup_task_ != 0);
     }
     bool is_softap_setup_ready();
-    void set_softap_target_event(SoftApEvent event);
-    SoftApEvent get_softap_target_event()
+    void set_softap_target_event(WifiSoftApEvent event);
+    WifiSoftApEvent get_softap_target_event()
     {
         return softap_target_event_;
     }
@@ -117,8 +122,8 @@ private:
 
     void *hal_ = nullptr;
     void *softap_netif_ = nullptr;
-    SoftApParams softap_params_{};
-    SoftApEvent softap_target_event_ = SoftApEvent::Max;
+    WifiSoftApParams softap_params_{};
+    WifiSoftApEvent softap_target_event_ = WifiSoftApEvent::Max;
     SoftApStateFlags softap_state_flags_;
     lib_utils::TaskScheduler::TaskId softap_setup_task_ = 0;
     lib_utils::TaskScheduler::TaskId softap_event_task_ = 0;
@@ -131,7 +136,7 @@ private:
     std::unique_ptr<boost::thread> provision_dns_thread_;
     int provision_dns_sock_ = -1;
 
-    std::vector<ScanApInfo> provision_scan_ap_infos_;
+    std::vector<WifiScanApInfo> provision_scan_ap_infos_;
     bool provision_scan_completed_ = false;
     boost::mutex provision_scan_mutex_;
     boost::condition_variable provision_scan_cv_;
@@ -140,4 +145,4 @@ private:
 
 BROOKESIA_DESCRIBE_ENUM(SoftAp::ProvisionConnectStatus, Idle, Connecting, Success, Failed);
 
-} // namespace esp_brookesia::service::wifi
+} // namespace esp_brookesia::hal

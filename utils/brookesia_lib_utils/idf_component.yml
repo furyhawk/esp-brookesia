@@ -4,12 +4,12 @@ url: https://github.com/espressif/esp-brookesia/tree/master/utils/brookesia_lib_
 repository: https://github.com/espressif/esp-brookesia.git
 issues: https://github.com/espressif/esp-brookesia/issues
 dependencies:
-  idf: ">=5.5,<6"
+  idf: ">=5.5"
 
   espressif/cmake_utilities:
     version: "0.*"
     require: public
 
   espressif/esp-boost:
-    version: "0.5.*"
+    version: "0.6.*"
     require: public

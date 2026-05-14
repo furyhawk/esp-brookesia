@@ -6,42 +6,42 @@
 #pragma once
 
 #include <string>
+#include "brookesia/hal_interface/interfaces/wifi/types.hpp"
 #include "brookesia/lib_utils/describe_helpers.hpp"
-#include "brookesia/service_helper/wifi.hpp"
 
 namespace esp_brookesia::service::wifi {
 
 /**
  * @brief Re-exported helper types used by the Wi-Fi HAL-facing APIs.
  */
-using GeneralAction = helper::Wifi::GeneralAction;
+using GeneralAction = hal::WifiGeneralAction;
 /**
  * @brief Re-exported general Wi-Fi event identifiers.
  */
-using GeneralEvent = helper::Wifi::GeneralEvent;
+using GeneralEvent = hal::WifiGeneralEvent;
 /**
  * @brief Parameters used to connect to an access point.
  */
-using ConnectApInfo = helper::Wifi::ConnectApInfo;
+using ConnectApInfo = hal::WifiConnectApInfo;
 /**
  * @brief Parameters used to configure an access-point scan.
  */
-using ScanParams = helper::Wifi::ScanParams;
+using ScanParams = hal::WifiScanParams;
 /**
  * @brief Signal strength classification for scanned access points.
  */
-using ScanApSignalLevel = helper::Wifi::ScanApSignalLevel;
+using ScanApSignalLevel = hal::WifiScanApSignalLevel;
 /**
  * @brief Information returned for one scanned access point.
  */
-using ScanApInfo = helper::Wifi::ScanApInfo;
+using ScanApInfo = hal::WifiScanApInfo;
 /**
  * @brief Parameters used to configure soft-AP mode.
  */
-using SoftApParams = helper::Wifi::SoftApParams;
+using SoftApParams = hal::WifiSoftApParams;
 /**
  * @brief Re-exported soft-AP event identifiers.
  */
-using SoftApEvent = helper::Wifi::SoftApEvent;
+using SoftApEvent = hal::WifiSoftApEvent;
 
 } // namespace esp_brookesia::service::wifi

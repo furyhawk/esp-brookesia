@@ -3,27 +3,35 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
+#include <array>
+#include <cerrno>
+#include <chrono>
+#include <exception>
+#include <limits>
+#include <string_view>
+
+#include "boost/format.hpp"
+#include "boost/json.hpp"
 #include "esp_mac.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "esp_netif.h"
 #include "esp_http_server.h"
 #include "lwip/sockets.h"
-#include "brookesia/service_wifi/macro_configs.h"
-#if !defined(BROOKESIA_SERVICE_WIFI_HAL_ENABLE_DEBUG_LOG)
+#include "brookesia/hal_adaptor/macro_configs.h"
+#if !BROOKESIA_HAL_ADAPTOR_WIFI_BACKEND_ENABLE_DEBUG_LOG
 #   define BROOKESIA_LOG_DISABLE_DEBUG_TRACE 1
 #endif
 #include "private/utils.hpp"
 #include "brookesia/lib_utils/function_guard.hpp"
 #include "brookesia/lib_utils/thread_config.hpp"
-#include "brookesia/service_wifi/service_wifi.hpp"
-#include "brookesia/service_wifi/hal/softap.hpp"
-#include "brookesia/service_wifi/hal/hal.hpp"
+#include "softap.hpp"
+#include "backend.hpp"
 
-namespace esp_brookesia::service::wifi {
+namespace esp_brookesia::hal {
 
 namespace {
-wifi_ap_config_t get_ap_config(const SoftApParams &ap_params)
+wifi_ap_config_t get_ap_config(const WifiSoftApParams &ap_params)
 {
     BROOKESIA_LOG_TRACE_GUARD();
 
@@ -36,7 +44,7 @@ wifi_ap_config_t get_ap_config(const SoftApParams &ap_params)
         .ssid = "",
         .password = "",
         .channel = static_cast<uint8_t>(ap_params.has_channel() ? ap_params.get_channel() :
-                                        BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_DEFAULT),
+                                        BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_DEFAULT),
         .authmode = WIFI_AUTH_OPEN,
         .max_connection = ap_params.max_connection,
     };
@@ -116,15 +124,16 @@ bool SoftAp::start_softap()
     softap_netif_ = esp_netif_create_default_wifi_ap();
     BROOKESIA_CHECK_NULL_RETURN(softap_netif_, false, "Create default AP netif failed");
 
-    auto hal = static_cast<Hal *>(hal_);
-    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid Hal pointer");
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
 
     if (is_softap_setup_ready()) {
         auto softap_params = get_softap_params();
         if (softap_params.ssid.empty()) {
             softap_params.ssid = SoftAp::get_ap_default_ssid();
             BROOKESIA_LOGW("No SSID provided, use default '%1%'", softap_params.ssid);
-            Wifi::get_instance().set_data<Wifi::DataType::SoftApParams>(softap_params);
+            set_softap_params(softap_params);
+            hal->notify_softap_params_updated(softap_params);
         }
 
         if (softap_params.has_channel()) {
@@ -161,9 +170,10 @@ void SoftAp::stop_softap()
     // Publish SoftAP stopped event if AP is still started
     if (has_softap_state_flag_bit(SoftApStateFlagBit::Started)) {
         BROOKESIA_LOGD("Publish missing SoftAP stopped event");
-        BROOKESIA_CHECK_FALSE_EXECUTE(Wifi::get_instance().publish_softap_event(SoftApEvent::Stopped), {}, {
-            BROOKESIA_LOGE("Failed to publish SoftAP stopped event");
-        });
+        auto hal = static_cast<WifiEspBackend *>(hal_);
+        if (hal != nullptr) {
+            hal->notify_softap_event(WifiSoftApEvent::Stopped);
+        }
     }
     clear_softap_state_flags();
 
@@ -173,7 +183,7 @@ void SoftAp::stop_softap()
     }
 }
 
-bool SoftAp::set_softap_params(const SoftApParams &params)
+bool SoftAp::set_softap_params(const WifiSoftApParams &params)
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
@@ -194,21 +204,25 @@ void SoftAp::set_provision_connect_status(ProvisionConnectStatus status)
 
     if (status == ProvisionConnectStatus::Success) {
         BROOKESIA_LOGW(
-            "Provision connect succeeded, schedule to close provision in %1%ms", BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_SUCCESS_CLOSE_DELAY_MS
+            "Provision connect succeeded, schedule to close provision in %1%ms", BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_SUCCESS_CLOSE_DELAY_MS
         );
 
-        auto task_scheduler = Wifi::get_instance().get_task_scheduler();
+        auto hal = static_cast<WifiEspBackend *>(hal_);
+        BROOKESIA_CHECK_NULL_EXIT(hal, "Invalid WifiEspBackend pointer");
+
+        auto task_scheduler = hal->get_task_scheduler();
         BROOKESIA_CHECK_NULL_EXIT(task_scheduler, "Invalid task scheduler");
 
         auto task = [this]() {
             BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
-            BROOKESIA_LOGI("%1% seconds later, close provision...", BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_SUCCESS_CLOSE_DELAY_MS / 1000);
+            BROOKESIA_LOGI("%1% seconds later, close provision...", BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_SUCCESS_CLOSE_DELAY_MS / 1000);
 
             stop_softap_provision();
         };
         auto result = task_scheduler->post_delayed(
-                          task, BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_SUCCESS_CLOSE_DELAY_MS, nullptr, Wifi::get_instance().get_state_task_group()
+                          task, BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_SUCCESS_CLOSE_DELAY_MS, nullptr,
+                          hal->get_task_group()
                       );
         BROOKESIA_CHECK_FALSE_EXIT(result, "Failed to post close provision task");
     }
@@ -238,20 +252,20 @@ void SoftAp::trigger_provision_connect(const std::string &ssid, const std::strin
 
     BROOKESIA_LOGD("Params: ssid(%1%)", ssid);
 
-    /* Post connect operation to the task scheduler for thread safety */
-    auto task_scheduler = Wifi::get_instance().get_task_scheduler();
-    BROOKESIA_CHECK_NULL_EXIT(task_scheduler, "Invalid task scheduler");
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    BROOKESIA_CHECK_NULL_EXIT(hal, "Invalid WifiEspBackend pointer");
 
-    auto hal = static_cast<Hal *>(hal_);
-    BROOKESIA_CHECK_NULL_EXIT(hal, "Invalid Hal pointer");
+    /* Post connect operation to the task scheduler for thread safety */
+    auto task_scheduler = hal->get_task_scheduler();
+    BROOKESIA_CHECK_NULL_EXIT(task_scheduler, "Invalid task scheduler");
 
     auto task = [this, hal, ssid, password]() {
         BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
-        hal->set_target_connect_ap_info(ConnectApInfo(ssid, password));
-        auto result = Wifi::get_instance().trigger_general_action(GeneralAction::Connect);
+        hal->set_target_connect_ap_info(WifiConnectApInfo(ssid, password));
+        auto result = hal->request_sta_action(WifiStaAction::Connect);
         BROOKESIA_CHECK_FALSE_EXIT(result, "Failed to trigger connect general action");
     };
-    auto result = task_scheduler->post(task, nullptr, Wifi::get_instance().get_state_task_group());
+    auto result = task_scheduler->post(task, nullptr, hal->get_task_group());
     BROOKESIA_CHECK_FALSE_EXIT(result, "Failed to post connect operation task");
 }
 
@@ -264,8 +278,8 @@ bool SoftAp::start_softap_provision()
         return true;
     }
 
-    auto hal = static_cast<Hal *>(hal_);
-    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid Hal pointer");
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
 
     lib_utils::FunctionGuard stop_guard([this]() {
         BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
@@ -274,9 +288,8 @@ bool SoftAp::start_softap_provision()
 
     is_softap_provision_running_ = true;
 
-    /* Disable auto connect during provision and trigger disconnect action */
-    hal->set_disable_auto_connect(true);
-    Wifi::get_instance().trigger_general_action(GeneralAction::Disconnect);
+    /* Trigger disconnect action before starting provision. Auto-connect policy is owned by the service. */
+    hal->request_sta_action(WifiStaAction::Disconnect);
 
     /* Start SoftAP (handles AP mode, channel selection, etc.) */
     BROOKESIA_CHECK_FALSE_RETURN(start_softap(), false, "Failed to start SoftAP for provision");
@@ -306,10 +319,8 @@ bool SoftAp::stop_softap_provision()
         return true;
     }
 
-    /* Restore auto connect */
-    auto hal = static_cast<Hal *>(hal_);
-    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid Hal pointer");
-    hal->set_disable_auto_connect(true);
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
 
     /* Clean up provision servers and stop SoftAP */
     cleanup_provision_servers();
@@ -318,7 +329,7 @@ bool SoftAp::stop_softap_provision()
     return true;
 }
 
-bool SoftAp::on_hal_scan_ap_infos_updated(const std::vector<ScanApInfo> &ap_infos)
+bool SoftAp::on_hal_scan_ap_infos_updated(const std::vector<WifiScanApInfo> &ap_infos)
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
@@ -327,10 +338,13 @@ bool SoftAp::on_hal_scan_ap_infos_updated(const std::vector<ScanApInfo> &ap_info
     if (has_softap_state_flag_bit(SoftApStateFlagBit::Setuping)) {
         BROOKESIA_LOGD("SoftAP is setuping, start AP with best channel");
 
+        auto hal = static_cast<WifiEspBackend *>(hal_);
+        BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
+
         auto softap_params = get_softap_params();
         softap_params.channel = get_ap_best_channel(ap_infos);
-        // Save data and store in NVS
-        Wifi::get_instance().set_data<Wifi::DataType::SoftApParams>(softap_params);
+        set_softap_params(softap_params);
+        hal->notify_softap_params_updated(softap_params);
         BROOKESIA_CHECK_FALSE_RETURN(do_softap_start(), false, "Start SoftAP failed");
     }
 
@@ -357,15 +371,15 @@ bool SoftAp::on_hal_softap_wifi_event(uint8_t event)
     }
 
     auto event_id = static_cast<wifi_event_t>(event);
-    SoftApEvent softap_event = SoftApEvent::Max;
+    WifiSoftApEvent softap_event = WifiSoftApEvent::Max;
     switch (event_id) {
     case WIFI_EVENT_AP_START:
         BROOKESIA_LOGD("Detected SoftAP started event");
-        softap_event = SoftApEvent::Started;
+        softap_event = WifiSoftApEvent::Started;
         break;
     case WIFI_EVENT_AP_STOP:
         BROOKESIA_LOGD("Detected SoftAP stopped event");
-        softap_event = SoftApEvent::Stopped;
+        softap_event = WifiSoftApEvent::Stopped;
         break;
     case WIFI_EVENT_STA_DISCONNECTED:
         if (!is_softap_provision_running() || (get_provision_connect_status() != ProvisionConnectStatus::Connecting)) {
@@ -379,7 +393,7 @@ bool SoftAp::on_hal_softap_wifi_event(uint8_t event)
         break;
     }
 
-    if (softap_event != SoftApEvent::Max) {
+    if (softap_event != WifiSoftApEvent::Max) {
         BROOKESIA_CHECK_FALSE_RETURN(start_softap_event_task(softap_event), false, "Failed to start SoftAP event task");
     }
 
@@ -418,7 +432,7 @@ void SoftAp::reset_data()
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
-    set_softap_params(SoftApParams{});
+    set_softap_params(WifiSoftApParams{});
 }
 
 void SoftAp::cleanup_provision_servers()
@@ -484,10 +498,10 @@ bool SoftAp::init_provision_http_server()
         auto softap = static_cast<SoftAp *>(req->user_ctx);
         BROOKESIA_CHECK_NULL_RETURN(softap, ESP_ERR_INVALID_ARG, "Invalid SoftAp pointer");
 
-        auto hal = static_cast<Hal *>(softap->hal_);
-        BROOKESIA_CHECK_NULL_RETURN(hal, ESP_ERR_INVALID_ARG, "Invalid Hal pointer");
+        auto hal = static_cast<WifiEspBackend *>(softap->hal_);
+        BROOKESIA_CHECK_NULL_RETURN(hal, ESP_ERR_INVALID_ARG, "Invalid WifiEspBackend pointer");
 
-        auto task_scheduler = Wifi::get_instance().get_task_scheduler();
+        auto task_scheduler = hal->get_task_scheduler();
         BROOKESIA_CHECK_NULL_RETURN(task_scheduler, ESP_ERR_INVALID_ARG, "Invalid task scheduler");
 
         hal->stop_scan();
@@ -519,15 +533,15 @@ bool SoftAp::init_provision_http_server()
             return true;
         };
         auto result = task_scheduler->post_periodic(
-                          scan_periodic_task, BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_SCAN_START_INTERVAL_MS,
+                          scan_periodic_task, BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_SCAN_START_INTERVAL_MS,
                           &softap->provision_scan_periodic_task_,
-                          Wifi::get_instance().get_state_task_group()
+                          hal->get_task_group()
                       );
         BROOKESIA_CHECK_FALSE_RETURN(result, ESP_ERR_INVALID_STATE, "Failed to start scan periodic task");
 
         /* Wait for scan results with timeout */
         boost::unique_lock<boost::mutex> lock(softap->provision_scan_mutex_);
-        auto timeout = boost::chrono::milliseconds(BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_SCAN_TIMEOUT_MS);
+        auto timeout = boost::chrono::milliseconds(BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_SCAN_TIMEOUT_MS);
         auto deadline = boost::chrono::steady_clock::now() + timeout;
 
         while (!softap->provision_scan_completed_)
@@ -622,7 +636,7 @@ bool SoftAp::init_provision_http_server()
             softap->set_provision_connect_status(SoftAp::ProvisionConnectStatus::Connecting);
             softap->set_provision_connect_error_msg("");
 
-            /* Trigger connect via Hal member function (has friend access to Wifi) */
+            /* Trigger connect via WifiEspBackend member function (has friend access to Wifi) */
             softap->trigger_provision_connect(ssid, pwd);
 
             httpd_resp_set_type(req, "application/json");
@@ -722,7 +736,8 @@ void SoftAp::deinit_provision_http_server()
         BROOKESIA_LOGD("Provision HTTP server stopped");
     }
     if (provision_scan_periodic_task_ != 0) {
-        auto task_scheduler = Wifi::get_instance().get_task_scheduler();
+        auto hal = static_cast<WifiEspBackend *>(hal_);
+        auto task_scheduler = (hal != nullptr) ? hal->get_task_scheduler() : nullptr;
         if (task_scheduler) {
             task_scheduler->cancel(provision_scan_periodic_task_);
         }
@@ -867,9 +882,9 @@ bool SoftAp::init_provision_dns_server()
     };
     {
         BROOKESIA_THREAD_CONFIG_GUARD({
-            .core_id = BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_DNS_THREAD_CORE_ID,
-            .priority = BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_DNS_THREAD_PRIORITY,
-            .stack_size = BROOKESIA_SERVICE_WIFI_SOFTAP_PROVISION_DNS_THREAD_STACK_SIZE,
+            .core_id = BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_DNS_THREAD_CORE_ID,
+            .priority = BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_DNS_THREAD_PRIORITY,
+            .stack_size = BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_PROVISION_DNS_THREAD_STACK_SIZE,
         });
         BROOKESIA_CHECK_EXCEPTION_RETURN(
             provision_dns_thread_ = std::make_unique<boost::thread>(provision_dns_thread), false,
@@ -897,7 +912,7 @@ void SoftAp::deinit_provision_dns_server()
     }
 }
 
-bool SoftAp::do_softap_start(const SoftApParams *params)
+bool SoftAp::do_softap_start(const WifiSoftApParams *params)
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
@@ -917,11 +932,15 @@ bool SoftAp::do_softap_start(const SoftApParams *params)
     });
 
     if (!params) {
+        auto hal = static_cast<WifiEspBackend *>(hal_);
+        BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
+
         auto softap_params = get_softap_params();
         if (softap_params.ssid.empty()) {
             softap_params.ssid = SoftAp::get_ap_default_ssid();
             BROOKESIA_LOGW("No SSID provided, use default '%1%'", softap_params.ssid);
-            Wifi::get_instance().set_data<Wifi::DataType::SoftApParams>(softap_params);
+            set_softap_params(softap_params);
+            hal->notify_softap_params_updated(softap_params);
         }
     }
 
@@ -966,10 +985,13 @@ bool SoftAp::start_softap_setup_task()
         return true;
     }
 
-    auto task_scheduler = Wifi::get_instance().get_task_scheduler();
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
+
+    auto task_scheduler = hal->get_task_scheduler();
     BROOKESIA_CHECK_NULL_RETURN(task_scheduler, false, "Invalid task scheduler");
 
-    auto softap_setup_task = [this, start_time = std::chrono::steady_clock::now()]() {
+    auto softap_setup_task = [this, hal, start_time = std::chrono::steady_clock::now()]() {
         BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
         if (has_softap_state_flag_bit(SoftApStateFlagBit::Setuped)) {
@@ -979,14 +1001,11 @@ bool SoftAp::start_softap_setup_task()
         }
 
         if (std::chrono::steady_clock::now() - start_time >
-                std::chrono::milliseconds(BROOKESIA_SERVICE_WIFI_SOFTAP_SETUP_TIMEOUT_MS)) {
+                std::chrono::milliseconds(BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_SETUP_TIMEOUT_MS)) {
             BROOKESIA_LOGE("Setup timeout, stop AP");
             stop_softap();
             return false;
         }
-
-        auto hal = static_cast<Hal *>(hal_);
-        BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid Hal pointer");
 
         if (!is_softap_setup_ready()) {
             BROOKESIA_LOGD("WiFi is not started or stopping, skip setup");
@@ -1012,8 +1031,8 @@ bool SoftAp::start_softap_setup_task()
         return true;
     };
     auto result = task_scheduler->post_periodic(
-                      softap_setup_task, BROOKESIA_SERVICE_WIFI_SOFTAP_SETUP_INTERVAL_MS, &softap_setup_task_,
-                      Wifi::get_instance().get_state_task_group()
+                      softap_setup_task, BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_SETUP_INTERVAL_MS, &softap_setup_task_,
+                      hal->get_task_group()
                   );
     BROOKESIA_CHECK_FALSE_RETURN(result, false, "Post SoftAP setup task failed");
 
@@ -1029,20 +1048,24 @@ void SoftAp::stop_softap_setup_task()
         return;
     }
 
-    auto task_scheduler = Wifi::get_instance().get_task_scheduler();
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    auto task_scheduler = (hal != nullptr) ? hal->get_task_scheduler() : nullptr;
     if (task_scheduler) {
         task_scheduler->cancel(softap_setup_task_);
     }
     softap_setup_task_ = 0;
 }
 
-bool SoftAp::start_softap_event_task(SoftApEvent event)
+bool SoftAp::start_softap_event_task(WifiSoftApEvent event)
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
     BROOKESIA_LOGD("Params: event(%1%)", BROOKESIA_DESCRIBE_TO_STR(event));
 
-    auto task_scheduler = Wifi::get_instance().get_task_scheduler();
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
+
+    auto task_scheduler = hal->get_task_scheduler();
     BROOKESIA_CHECK_NULL_RETURN(task_scheduler, false, "Invalid task scheduler");
 
     if (get_softap_target_event() == event) {
@@ -1066,24 +1089,25 @@ bool SoftAp::start_softap_event_task(SoftApEvent event)
         BROOKESIA_LOGD("Params: event(%1%)", BROOKESIA_DESCRIBE_TO_STR(event));
 
         switch (event) {
-        case SoftApEvent::Started:
+        case WifiSoftApEvent::Started:
             update_softap_state_flag_bit(SoftApStateFlagBit::Started, true);
             update_softap_state_flag_bit(SoftApStateFlagBit::Starting, false);
             break;
-        case SoftApEvent::Stopped:
+        case WifiSoftApEvent::Stopped:
             clear_softap_state_flags();
             break;
         default:
             break;
         }
-        BROOKESIA_CHECK_FALSE_EXECUTE(Wifi::get_instance().publish_softap_event(get_softap_target_event()), {}, {
-            BROOKESIA_LOGE("Failed to publish SoftAP event");
-        });
+        auto hal = static_cast<WifiEspBackend *>(hal_);
+        if (hal != nullptr) {
+            hal->notify_softap_event(get_softap_target_event());
+        }
         stop_softap_event_task();
     };
     auto result = task_scheduler->post_delayed(
-                      softap_event_task, BROOKESIA_SERVICE_WIFI_SOFTAP_EVENT_DELAY_MS, &softap_event_task_,
-                      Wifi::get_instance().get_state_task_group()
+                      softap_event_task, BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_EVENT_DELAY_MS, &softap_event_task_,
+                      hal->get_task_group()
                   );
     BROOKESIA_CHECK_FALSE_RETURN(result, false, "Post SoftAP event task failed");
 
@@ -1099,31 +1123,32 @@ void SoftAp::stop_softap_event_task()
         return;
     }
 
-    auto task_scheduler = Wifi::get_instance().get_task_scheduler();
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    auto task_scheduler = (hal != nullptr) ? hal->get_task_scheduler() : nullptr;
     if (task_scheduler) {
         task_scheduler->cancel(softap_event_task_);
     }
 
     softap_event_task_ = 0;
-    set_softap_target_event(SoftApEvent::Max);
+    set_softap_target_event(WifiSoftApEvent::Max);
 }
 
 bool SoftAp::is_softap_setup_ready()
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
-    auto hal = static_cast<Hal *>(hal_);
-    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid Hal pointer");
+    auto hal = static_cast<WifiEspBackend *>(hal_);
+    BROOKESIA_CHECK_NULL_RETURN(hal, false, "Invalid WifiEspBackend pointer");
 
-    if (!hal->is_general_event_ready(GeneralEvent::Started) || hal->is_general_action_running(GeneralAction::Stop) ||
-            hal->is_general_action_running(GeneralAction::Disconnect)) {
+    if (!hal->is_general_event_ready(WifiGeneralEvent::Started) || hal->is_general_action_running(WifiGeneralAction::Stop) ||
+            hal->is_general_action_running(WifiGeneralAction::Disconnect)) {
         return false;
     }
 
     return true;
 }
 
-void SoftAp::set_softap_target_event(SoftApEvent event)
+void SoftAp::set_softap_target_event(WifiSoftApEvent event)
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
@@ -1171,26 +1196,26 @@ std::string SoftAp::get_ap_default_ssid()
 }
 
 // TODO: If AP fails to start, automatically switch channel
-uint8_t SoftAp::get_ap_best_channel(const std::vector<ScanApInfo> &ap_infos)
+uint8_t SoftAp::get_ap_best_channel(const std::vector<WifiScanApInfo> &ap_infos)
 {
     if (ap_infos.empty()) {
-        BROOKESIA_LOGD("No AP scanned, return default channel: %1%", BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_DEFAULT);
-        return BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_DEFAULT;
+        BROOKESIA_LOGD("No AP scanned, return default channel: %1%", BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_DEFAULT);
+        return BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_DEFAULT;
     }
 
-    std::array < size_t, BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_MAX + 1 > channel_count{};
+    std::array < size_t, BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_MAX + 1 > channel_count{};
     for (const auto &ap : ap_infos) {
-        if ((ap.channel >= BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_MIN) && (ap.channel <= BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_MAX)) {
+        if ((ap.channel >= BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_MIN) && (ap.channel <= BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_MAX)) {
             channel_count[ap.channel]++;
         }
     }
 
-    uint8_t best_channel = BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_DEFAULT;
+    uint8_t best_channel = BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_DEFAULT;
     float best_score = std::numeric_limits<float>::max();
     auto get = [&](int ch) -> size_t {
-        return (ch >= BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_MIN && ch <= BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_MAX) ? channel_count[ch] : 0;
+        return (ch >= BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_MIN && ch <= BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_MAX) ? channel_count[ch] : 0;
     };
-    for (uint8_t ch = BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_MIN; ch <= BROOKESIA_SERVICE_WIFI_SOFTAP_CHANNEL_MAX; ++ch) {
+    for (uint8_t ch = BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_MIN; ch <= BROOKESIA_HAL_ADAPTOR_WIFI_SOFTAP_CHANNEL_MAX; ++ch) {
         // --- 1. Adjacent channel weighted interference ---
         float score =
             0.25f * get(ch - 2) +
@@ -1223,4 +1248,4 @@ uint8_t SoftAp::get_ap_best_channel(const std::vector<ScanApInfo> &ap_infos)
     return best_channel;
 }
 
-} // namespace esp_brookesia::service::wifi
+} // namespace esp_brookesia::hal

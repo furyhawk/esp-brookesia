@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2025 Espressif Systems (Shanghai) CO LTD
+ * SPDX-FileCopyrightText: 2025-2026 Espressif Systems (Shanghai) CO LTD
  *
  * SPDX-License-Identifier: CC0-1.0
  */
@@ -11,6 +11,8 @@
 #include <chrono>
 #include <set>
 #include "brookesia/lib_utils.hpp"
+#include "brookesia/hal_adaptor/storage/device.hpp"
+#include "brookesia/hal_interface/device.hpp"
 #include "brookesia/service_manager.hpp"
 #include "brookesia/service_manager/service/local_runner.hpp"
 #include "brookesia/service_helper/nvs.hpp"
@@ -761,13 +763,22 @@ static bool startup()
     opt.time_unit = lib_utils::TimeProfiler::FormatOptions::TimeUnit::Milliseconds;
     time_profiler.set_format_options(opt);
 
-    BROOKESIA_CHECK_FALSE_RETURN(service_manager.start(), false, "Failed to start service manager");
+    BROOKESIA_CHECK_FALSE_RETURN(
+        hal::init_device(hal::StorageDevice::DEVICE_NAME), false, "Failed to initialize storage HAL device"
+    );
+
+    if (!service_manager.start()) {
+        hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
+        BROOKESIA_LOGE("Failed to start service manager");
+        return false;
+    }
     return true;
 }
 
 static void shutdown()
 {
     service_manager.deinit();
+    hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
     time_profiler.report();
     time_profiler.clear();
 }

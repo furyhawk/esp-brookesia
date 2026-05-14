@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <span>
@@ -38,6 +39,8 @@ constexpr uint8_t AUDIO_PCM_BITS = 16;
 constexpr uint8_t AUDIO_PCM_CHANNELS = 1;
 constexpr size_t WAV_HEADER_SIZE = 44;
 constexpr uint32_t DEVICE_WAIT_EVENT_TIMEOUT_MS = EXAMPLE_TEST_ACTION_DELAY_MS;
+constexpr uint32_t DISPLAY_COLOR_BAR_REFRESH_LINES = 16;
+constexpr uint32_t DISPLAY_COLOR_BAR_REFRESH_DELAY_MS = 20;
 constexpr const char *AUDIO_PCM_FILE_PATH = "/spiffs/audio.pcm";
 
 static bool get_capabilities(DeviceHelper::Capabilities &capabilities);
@@ -198,37 +201,68 @@ static bool fill_display_panel_color_bars()
     BROOKESIA_CHECK_FALSE_RETURN((pixel_bits % 8) == 0, false, "Unsupported display panel pixel bits: %1%", pixel_bits);
 
     const auto bytes_per_pixel = static_cast<size_t>(pixel_bits / 8);
-    auto write_pixel_bit = [pixel_bits](uint8_t *pixel, uint8_t bit_index) {
+    const auto color_bar_count = static_cast<uint32_t>(bytes_per_pixel * 8);
+    const auto color_bar_lines = info.v_res / color_bar_count;
+    BROOKESIA_CHECK_FALSE_RETURN(color_bar_lines > 0, false, "Display panel vertical resolution is too small");
+
+    auto write_pixel_bit = [bytes_per_pixel](uint8_t *pixel, uint8_t bit_index) {
         const uint32_t pixel_value = 1U << bit_index;
-
-        if (pixel_bits == 16) {
-            pixel[0] = static_cast<uint8_t>(pixel_value & 0xFF);
-            pixel[1] = static_cast<uint8_t>((pixel_value >> 8) & 0xFF);
-            return;
+        for (size_t byte_index = 0; byte_index < bytes_per_pixel; ++byte_index) {
+            pixel[byte_index] = static_cast<uint8_t>((pixel_value >> (byte_index * 8)) & 0xFF);
         }
-
-        pixel[0] = static_cast<uint8_t>((pixel_value >> 16) & 0xFF);
-        pixel[1] = static_cast<uint8_t>((pixel_value >> 8) & 0xFF);
-        pixel[2] = static_cast<uint8_t>(pixel_value & 0xFF);
     };
 
-    std::vector<uint8_t> color_bar_line(static_cast<size_t>(info.h_res) * bytes_per_pixel, 0);
-    for (uint32_t x = 0; x < info.h_res; ++x) {
-        const auto bit_index = static_cast<uint8_t>((static_cast<size_t>(x) * pixel_bits) / info.h_res);
-        write_pixel_bit(&color_bar_line[static_cast<size_t>(x) * bytes_per_pixel], bit_index);
+    const auto line_bytes = static_cast<size_t>(info.h_res) * bytes_per_pixel;
+    std::vector<uint8_t> color_bar_line(line_bytes, 0);
+    std::vector<uint8_t> color_bar_block(line_bytes * DISPLAY_COLOR_BAR_REFRESH_LINES, 0);
+
+    for (uint32_t bit_index = 0; bit_index < color_bar_count; ++bit_index) {
+        for (uint32_t x = 0; x < info.h_res; ++x) {
+            write_pixel_bit(&color_bar_line[static_cast<size_t>(x) * bytes_per_pixel], static_cast<uint8_t>(bit_index));
+        }
+
+        const auto y_start = bit_index * color_bar_lines;
+        const auto y_end = (bit_index + 1) * color_bar_lines;
+        for (uint32_t y = y_start; y < y_end; y += DISPLAY_COLOR_BAR_REFRESH_LINES) {
+            const auto refresh_lines = std::min(DISPLAY_COLOR_BAR_REFRESH_LINES, y_end - y);
+            for (uint32_t line = 0; line < refresh_lines; ++line) {
+                std::memcpy(
+                    &color_bar_block[static_cast<size_t>(line) * line_bytes], color_bar_line.data(), line_bytes
+                );
+            }
+
+            BROOKESIA_CHECK_FALSE_RETURN(
+                panel_iface->draw_bitmap(0, y, info.h_res, y + refresh_lines, color_bar_block.data()), false,
+                "Failed to draw color-bar block at bit=%1%, y=%2%, lines=%3%", bit_index, y, refresh_lines
+            );
+            boost::this_thread::sleep_for(boost::chrono::milliseconds(DISPLAY_COLOR_BAR_REFRESH_DELAY_MS));
+        }
     }
 
-    for (uint32_t y = 0; y < info.v_res; ++y) {
-        BROOKESIA_CHECK_FALSE_RETURN(
-            panel_iface->draw_bitmap(0, y, info.h_res, y + 1, color_bar_line.data()), false,
-            "Failed to draw color-bar line at y=%1%", y
-        );
-        boost::this_thread::sleep_for(boost::chrono::milliseconds(100));
+    const auto color_bar_end_y = color_bar_count * color_bar_lines;
+    if (color_bar_end_y < info.v_res) {
+        std::fill(color_bar_line.begin(), color_bar_line.end(), 0xFF);
+        for (uint32_t y = color_bar_end_y; y < info.v_res; y += DISPLAY_COLOR_BAR_REFRESH_LINES) {
+            const auto refresh_lines = std::min(DISPLAY_COLOR_BAR_REFRESH_LINES, info.v_res - y);
+            for (uint32_t line = 0; line < refresh_lines; ++line) {
+                std::memcpy(
+                    &color_bar_block[static_cast<size_t>(line) * line_bytes], color_bar_line.data(), line_bytes
+                );
+            }
+
+            BROOKESIA_CHECK_FALSE_RETURN(
+                panel_iface->draw_bitmap(0, y, info.h_res, y + refresh_lines, color_bar_block.data()), false,
+                "Failed to draw color-bar remainder at y=%1%, lines=%2%", y, refresh_lines
+            );
+            boost::this_thread::sleep_for(boost::chrono::milliseconds(DISPLAY_COLOR_BAR_REFRESH_DELAY_MS));
+        }
     }
 
     BROOKESIA_LOGI(
-        "Filled display panel with %1% pixel-bit color bars: %2%x%3%, format=%4%",
-        pixel_bits, info.h_res, info.v_res, BROOKESIA_DESCRIBE_TO_STR(info.pixel_format)
+        "Filled display panel with %1% pixel-bit row color bars: %2%x%3%, format=%4%, color_bars=%5%, "
+        "bar_lines=%6%, refresh_lines=%7%",
+        pixel_bits, info.h_res, info.v_res, BROOKESIA_DESCRIBE_TO_STR(info.pixel_format),
+        color_bar_count, color_bar_lines, DISPLAY_COLOR_BAR_REFRESH_LINES
     );
 
     return true;

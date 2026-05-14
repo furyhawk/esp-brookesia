@@ -6,7 +6,9 @@
 #pragma once
 
 #include <expected>
+#include <memory>
 #include <string>
+#include "brookesia/hal_interface/interfaces/storage/kv.hpp"
 #include "brookesia/service_helper/nvs.hpp"
 #include "brookesia/service_manager/service/base.hpp"
 #include "brookesia/service_manager/macro_configs.h"
@@ -69,6 +71,8 @@ private:
     std::expected<void, std::string> function_set(const std::string &nspace, boost::json::object &&key_value_map);
     std::expected<boost::json::object, std::string> function_get(const std::string &nspace, boost::json::array &&keys);
     std::expected<void, std::string> function_erase(const std::string &nspace, boost::json::array &&keys);
+
+    std::shared_ptr<hal::StorageKvIface> kv_iface_;
 
     std::vector<FunctionSchema> get_function_schemas() override
     {

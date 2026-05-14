@@ -4,14 +4,19 @@
  * SPDX-License-Identifier: CC0-1.0
  */
 #include <sys/stat.h>
+#include <atomic>
 #include <array>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
-#include <vector>
 #include <utility>
+#include <variant>
+#include <vector>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "unity.h"
 #include "brookesia/lib_utils.hpp"
 #include "brookesia/hal_interface.hpp"
@@ -38,6 +43,9 @@
 #ifndef BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_GENERAL_FS_IMPL
 #   define BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_GENERAL_FS_IMPL  (0)
 #endif
+#ifndef BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_KV_IMPL
+#   define BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_KV_IMPL  (0)
+#endif
 #ifndef BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SPIFFS
 #   define BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SPIFFS  (0)
 #endif
@@ -46,6 +54,12 @@
 #endif
 #ifndef BROOKESIA_HAL_ADAPTOR_POWER_ENABLE_BATTERY
 #   define BROOKESIA_HAL_ADAPTOR_POWER_ENABLE_BATTERY  (0)
+#endif
+#ifndef HAL_ADAPTOR_TEST_WIFI_SSID
+#   define HAL_ADAPTOR_TEST_WIFI_SSID  ""
+#endif
+#ifndef HAL_ADAPTOR_TEST_WIFI_PSW
+#   define HAL_ADAPTOR_TEST_WIFI_PSW  ""
 #endif
 
 using namespace esp_brookesia;
@@ -57,13 +71,42 @@ struct DeviceConfig {
     bool enabled;
 };
 
-constexpr std::array<DeviceConfig, 5> DEVICE_CONFIGS = {{
+constexpr std::array<DeviceConfig, 6> DEVICE_CONFIGS = {{
         { hal::GeneralDevice::DEVICE_NAME, BROOKESIA_HAL_ADAPTOR_ENABLE_GENERAL_DEVICE },
         { hal::AudioDevice::DEVICE_NAME, BROOKESIA_HAL_ADAPTOR_ENABLE_AUDIO_DEVICE },
         { hal::DisplayDevice::DEVICE_NAME, BROOKESIA_HAL_ADAPTOR_ENABLE_DISPLAY_DEVICE },
         { hal::StorageDevice::DEVICE_NAME, BROOKESIA_HAL_ADAPTOR_ENABLE_STORAGE_DEVICE },
         { hal::PowerDevice::DEVICE_NAME, BROOKESIA_HAL_ADAPTOR_ENABLE_POWER_DEVICE },
+        { hal::WifiDevice::DEVICE_NAME, BROOKESIA_HAL_ADAPTOR_ENABLE_WIFI_DEVICE },
     }
+};
+
+struct WifiBasicCallbackState {
+    std::atomic<int> action_count{0};
+    std::atomic<int> error_count{0};
+    std::atomic<bool> inited{false};
+    std::atomic<bool> started{false};
+    std::atomic<bool> stopped{false};
+    std::atomic<bool> deinited{false};
+};
+
+struct WifiStaCallbackState {
+    std::atomic<int> action_count{0};
+    std::atomic<int> error_count{0};
+    std::atomic<bool> connected{false};
+    std::atomic<bool> disconnected{false};
+    std::atomic<bool> scan_started{false};
+    std::atomic<bool> scan_stopped{false};
+    std::atomic<bool> last_connected_ap_updated{false};
+    std::atomic<bool> connected_ap_infos_updated{false};
+    std::atomic<size_t> scan_ap_count{0};
+};
+
+struct WifiSoftApCallbackState {
+    std::atomic<bool> started{false};
+    std::atomic<bool> stopped{false};
+    std::atomic<bool> params_updated{false};
+    std::atomic<bool> disconnect_requested{false};
 };
 
 void deinit_enabled_devices()
@@ -93,6 +136,32 @@ std::map<std::string, std::shared_ptr<T>> get_interfaces_or_fail(const char *mes
     auto interfaces = hal::get_interfaces<T>();
     TEST_ASSERT_FALSE_MESSAGE(interfaces.empty(), message);
     return interfaces;
+}
+
+bool has_wifi_test_credentials()
+{
+    return (std::strlen(HAL_ADAPTOR_TEST_WIFI_SSID) > 0);
+}
+
+bool wait_for_condition(const std::function<bool()> &condition, uint32_t timeout_ms = 5000, uint32_t interval_ms = 50)
+{
+    const uint32_t deadline_ms = timeout_ms + (xTaskGetTickCount() * portTICK_PERIOD_MS);
+    while ((xTaskGetTickCount() * portTICK_PERIOD_MS) <= deadline_ms) {
+        if (condition()) {
+            return true;
+        }
+        vTaskDelay(pdMS_TO_TICKS(interval_ms));
+    }
+
+    return condition();
+}
+
+std::shared_ptr<lib_utils::TaskScheduler> create_started_scheduler()
+{
+    auto scheduler = std::make_shared<lib_utils::TaskScheduler>();
+    TEST_ASSERT_NOT_NULL(scheduler.get());
+    TEST_ASSERT_TRUE(scheduler->start());
+    return scheduler;
 }
 
 bool path_exists(const char *path)
@@ -195,6 +264,22 @@ std::string describe_interface(const std::shared_ptr<hal::Interface> &iface)
     }
     if (auto storage = std::dynamic_pointer_cast<hal::StorageFsIface>(iface)) {
         return BROOKESIA_DESCRIBE_TO_STR(storage->get_all_info());
+    }
+    if (auto storage_kv = std::dynamic_pointer_cast<hal::StorageKvIface>(iface)) {
+        return (boost::format("{last_error=%1%}") % storage_kv->get_last_error()).str();
+    }
+    if (auto wifi_basic = std::dynamic_pointer_cast<hal::WifiBasicIface>(iface)) {
+        return (boost::format("{started=%1%, stopped=%2%}") %
+                wifi_basic->is_basic_event_ready(hal::WifiBasicEvent::Started) %
+                wifi_basic->is_basic_event_ready(hal::WifiBasicEvent::Stopped)).str();
+    }
+    if (auto wifi_sta = std::dynamic_pointer_cast<hal::WifiStaIface>(iface)) {
+        return (boost::format("{scan_params=%1%}") %
+                BROOKESIA_DESCRIBE_TO_STR(wifi_sta->get_scan_params())).str();
+    }
+    if (auto wifi_softap = std::dynamic_pointer_cast<hal::WifiSoftApIface>(iface)) {
+        return (boost::format("{softap_params=%1%}") %
+                BROOKESIA_DESCRIBE_TO_STR(wifi_softap->get_softap_params())).str();
     }
 
     return "Unsupported interface type";
@@ -579,4 +664,461 @@ TEST_CASE("HAL adaptor: StorageFsIface smoke test", "[hal][adaptor][storage][fs]
     }
 
     hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
+}
+
+TEST_CASE("HAL adaptor: StorageKvIface smoke test", "[hal][adaptor][storage][kv]")
+{
+    reset_and_init_device(
+        hal::StorageDevice::DEVICE_NAME,
+        BROOKESIA_HAL_ADAPTOR_ENABLE_STORAGE_DEVICE && BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_KV_IMPL,
+        "StorageKvIface is disabled by Kconfig"
+    );
+
+    auto interfaces = get_interfaces_or_fail<hal::StorageKvIface>(
+                          "No StorageKvIface found after StorageDevice init"
+                      );
+    assert_common_interface_properties(interfaces, hal::StorageDevice::DEVICE_NAME);
+
+    for (const auto &[iface_name, iface] : interfaces) {
+        BROOKESIA_LOGI("Testing storage KV interface %1%", iface_name);
+
+        hal::StorageKvIface::KeyValueMap values = {
+            {"enabled", true},
+            {"count", int32_t(7)},
+            {"name", std::string("hal-adaptor")},
+        };
+        TEST_ASSERT_TRUE(iface->set("hal_smoke", values));
+
+        std::vector<hal::StorageKvIface::EntryInfo> entries;
+        TEST_ASSERT_TRUE(iface->list("hal_smoke", entries));
+        TEST_ASSERT_EQUAL(3, entries.size());
+
+        hal::StorageKvIface::KeyValueMap read_values;
+        TEST_ASSERT_TRUE(iface->get("hal_smoke", {"enabled", "count", "name", "missing"}, read_values));
+        TEST_ASSERT_EQUAL(3, read_values.size());
+        TEST_ASSERT_TRUE(std::holds_alternative<bool>(read_values.at("enabled")));
+        TEST_ASSERT_TRUE(std::get<bool>(read_values.at("enabled")));
+        TEST_ASSERT_TRUE(std::holds_alternative<int32_t>(read_values.at("count")));
+        TEST_ASSERT_EQUAL(7, std::get<int32_t>(read_values.at("count")));
+        TEST_ASSERT_TRUE(std::holds_alternative<std::string>(read_values.at("name")));
+        TEST_ASSERT_EQUAL_STRING("hal-adaptor", std::get<std::string>(read_values.at("name")).c_str());
+
+        read_values.clear();
+        TEST_ASSERT_TRUE(iface->get("hal_smoke", {}, read_values));
+        TEST_ASSERT_EQUAL(3, read_values.size());
+
+        TEST_ASSERT_TRUE(iface->erase("hal_smoke", {"enabled", "missing"}));
+        read_values.clear();
+        TEST_ASSERT_TRUE(iface->get("hal_smoke", {}, read_values));
+        TEST_ASSERT_EQUAL(2, read_values.size());
+        TEST_ASSERT_TRUE(read_values.find("enabled") == read_values.end());
+
+        TEST_ASSERT_TRUE(iface->erase("hal_smoke", {}));
+        entries.clear();
+        TEST_ASSERT_TRUE(iface->list("hal_smoke", entries));
+        TEST_ASSERT_TRUE(entries.empty());
+    }
+
+    hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
+}
+
+TEST_CASE("HAL adaptor: WifiBasicIface smoke test", "[hal][adaptor][wifi][basic]")
+{
+    reset_and_init_device(
+        hal::WifiDevice::DEVICE_NAME,
+        BROOKESIA_HAL_ADAPTOR_ENABLE_WIFI_DEVICE,
+        "WiFi device is disabled by Kconfig"
+    );
+
+    auto interfaces = get_interfaces_or_fail<hal::WifiBasicIface>(
+                          "No WifiBasicIface found after WifiDevice init"
+                      );
+    assert_common_interface_properties(interfaces, hal::WifiDevice::DEVICE_NAME);
+
+    for (const auto &[iface_name, iface] : interfaces) {
+        BROOKESIA_LOGI("Testing Wi-Fi basic interface %1%", iface_name);
+
+        auto scheduler = create_started_scheduler();
+        WifiBasicCallbackState callback_state{};
+        TEST_ASSERT_TRUE(iface->configure(
+        hal::WifiBasicIface::RuntimeContext{
+            .task_scheduler = scheduler,
+            .task_group = "hal-adaptor-wifi-basic",
+        },
+        hal::WifiBasicIface::Callbacks{
+            .on_action = [&](hal::WifiBasicAction)
+            {
+                callback_state.action_count++;
+            },
+            .on_event = [&](hal::WifiBasicEvent event, bool)
+            {
+                switch (event) {
+                case hal::WifiBasicEvent::Inited:
+                    callback_state.inited = true;
+                    break;
+                case hal::WifiBasicEvent::Started:
+                    callback_state.started = true;
+                    break;
+                case hal::WifiBasicEvent::Stopped:
+                    callback_state.stopped = true;
+                    break;
+                case hal::WifiBasicEvent::Deinited:
+                    callback_state.deinited = true;
+                    break;
+                default:
+                    break;
+                }
+            },
+            .on_error = [&]()
+            {
+                callback_state.error_count++;
+            },
+        }
+                         ));
+
+        TEST_ASSERT_TRUE(iface->init());
+        TEST_ASSERT_TRUE(iface->start());
+
+        TEST_ASSERT_TRUE(iface->do_basic_action(hal::WifiBasicAction::Init));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return iface->is_basic_event_ready(hal::WifiBasicEvent::Inited) && callback_state.inited.load();
+        }));
+
+        TEST_ASSERT_TRUE(iface->do_basic_action(hal::WifiBasicAction::Start));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return iface->is_basic_event_ready(hal::WifiBasicEvent::Started) && callback_state.started.load();
+        }));
+
+        TEST_ASSERT_TRUE(iface->do_basic_action(hal::WifiBasicAction::Stop));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return iface->is_basic_event_ready(hal::WifiBasicEvent::Stopped) && callback_state.stopped.load();
+        }));
+
+        TEST_ASSERT_TRUE(iface->do_basic_action(hal::WifiBasicAction::Deinit));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return iface->is_basic_event_ready(hal::WifiBasicEvent::Deinited) && callback_state.deinited.load();
+        }));
+
+        TEST_ASSERT_GREATER_OR_EQUAL(4, callback_state.action_count.load());
+        TEST_ASSERT_EQUAL(0, callback_state.error_count.load());
+
+        iface->clear_callbacks();
+        iface->stop();
+        iface->deinit();
+        scheduler->stop();
+    }
+
+    hal::deinit_device(hal::WifiDevice::DEVICE_NAME);
+}
+
+TEST_CASE("HAL adaptor: WifiStaIface smoke test", "[hal][adaptor][wifi][sta]")
+{
+    reset_and_init_device(
+        hal::WifiDevice::DEVICE_NAME,
+        BROOKESIA_HAL_ADAPTOR_ENABLE_WIFI_DEVICE,
+        "WiFi device is disabled by Kconfig"
+    );
+
+    auto basic_interfaces = get_interfaces_or_fail<hal::WifiBasicIface>(
+                                "No WifiBasicIface found after WifiDevice init"
+                            );
+    auto sta_interfaces = get_interfaces_or_fail<hal::WifiStaIface>(
+                              "No WifiStaIface found after WifiDevice init"
+                          );
+    assert_common_interface_properties(basic_interfaces, hal::WifiDevice::DEVICE_NAME);
+    assert_common_interface_properties(sta_interfaces, hal::WifiDevice::DEVICE_NAME);
+
+    for (const auto &[iface_name, sta_iface] : sta_interfaces) {
+        auto basic_it = basic_interfaces.find(hal::WifiDevice::BASIC_IFACE_NAME);
+        TEST_ASSERT_TRUE(basic_it != basic_interfaces.end());
+        auto basic_iface = basic_it->second;
+        TEST_ASSERT_NOT_NULL(basic_iface.get());
+
+        BROOKESIA_LOGI("Testing Wi-Fi STA interface %1%", iface_name);
+
+        auto scheduler = create_started_scheduler();
+        WifiBasicCallbackState basic_callback_state{};
+        WifiStaCallbackState sta_callback_state{};
+
+        TEST_ASSERT_TRUE(basic_iface->configure(
+        hal::WifiBasicIface::RuntimeContext{
+            .task_scheduler = scheduler,
+            .task_group = "hal-adaptor-wifi-sta",
+        },
+        hal::WifiBasicIface::Callbacks{
+            .on_action = [&](hal::WifiBasicAction)
+            {
+                basic_callback_state.action_count++;
+            },
+            .on_event = [&](hal::WifiBasicEvent event, bool)
+            {
+                if (event == hal::WifiBasicEvent::Inited) {
+                    basic_callback_state.inited = true;
+                } else if (event == hal::WifiBasicEvent::Started) {
+                    basic_callback_state.started = true;
+                } else if (event == hal::WifiBasicEvent::Stopped) {
+                    basic_callback_state.stopped = true;
+                } else if (event == hal::WifiBasicEvent::Deinited) {
+                    basic_callback_state.deinited = true;
+                }
+            },
+            .on_error = [&]()
+            {
+                basic_callback_state.error_count++;
+            },
+        }
+                         ));
+        TEST_ASSERT_TRUE(sta_iface->configure({
+            .on_action = [&](hal::WifiStaAction)
+            {
+                sta_callback_state.action_count++;
+            },
+            .on_event = [&](hal::WifiStaEvent event, bool)
+            {
+                if (event == hal::WifiStaEvent::Connected) {
+                    sta_callback_state.connected = true;
+                } else if (event == hal::WifiStaEvent::Disconnected) {
+                    sta_callback_state.disconnected = true;
+                }
+            },
+            .on_error = [&]()
+            {
+                sta_callback_state.error_count++;
+            },
+            .on_action_requested = nullptr,
+            .on_scan_state_changed = [&](bool is_scanning)
+            {
+                if (is_scanning) {
+                    sta_callback_state.scan_started = true;
+                } else {
+                    sta_callback_state.scan_stopped = true;
+                }
+            },
+            .on_scan_ap_infos_updated = [&](std::span<const hal::WifiScanApInfo> ap_infos)
+            {
+                sta_callback_state.scan_ap_count = ap_infos.size();
+            },
+            .on_last_connected_ap_info_updated = [&](const hal::WifiConnectApInfo &)
+            {
+                sta_callback_state.last_connected_ap_updated = true;
+            },
+            .on_connected_ap_infos_updated = [&](const hal::WifiConnectApInfoList &)
+            {
+                sta_callback_state.connected_ap_infos_updated = true;
+            },
+        }));
+
+        TEST_ASSERT_TRUE(basic_iface->init());
+        TEST_ASSERT_TRUE(basic_iface->start());
+        TEST_ASSERT_TRUE(basic_iface->do_basic_action(hal::WifiBasicAction::Init));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return basic_iface->is_basic_event_ready(hal::WifiBasicEvent::Inited);
+        }));
+        TEST_ASSERT_TRUE(basic_iface->do_basic_action(hal::WifiBasicAction::Start));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return basic_iface->is_basic_event_ready(hal::WifiBasicEvent::Started);
+        }));
+
+        hal::WifiConnectApInfo target_ap("hal-adaptor-test", "12345678");
+        TEST_ASSERT_TRUE(sta_iface->set_target_connect_ap_info(target_ap));
+        TEST_ASSERT_EQUAL_STRING(target_ap.ssid.c_str(), sta_iface->get_target_connect_ap_info().ssid.c_str());
+
+        hal::WifiConnectApInfo last_ap("hal-adaptor-last", "87654321");
+        TEST_ASSERT_TRUE(sta_iface->set_last_connected_ap_info(last_ap));
+        TEST_ASSERT_EQUAL_STRING(last_ap.ssid.c_str(), sta_iface->get_last_connected_ap_info().ssid.c_str());
+
+        hal::WifiConnectApInfoList connected_aps = {
+            hal::WifiConnectApInfo("ap-1", "pw-1"),
+            hal::WifiConnectApInfo("ap-2", "pw-2"),
+        };
+        TEST_ASSERT_TRUE(sta_iface->set_connected_ap_infos(connected_aps));
+        TEST_ASSERT_EQUAL(2, sta_iface->get_connected_ap_infos().size());
+
+        sta_iface->mark_target_connect_ap_info_connectable(false);
+        TEST_ASSERT_FALSE(sta_iface->get_target_connect_ap_info().is_connectable);
+        sta_iface->mark_target_connect_ap_info_connectable(true);
+        TEST_ASSERT_TRUE(sta_iface->get_target_connect_ap_info().is_connectable);
+
+        hal::WifiScanParams scan_params = {
+            .ap_count = 6,
+            .interval_ms = 1000,
+            .timeout_ms = 4000,
+        };
+        TEST_ASSERT_TRUE(sta_iface->set_scan_params(scan_params));
+        TEST_ASSERT_TRUE(sta_iface->get_scan_params() == scan_params);
+
+        const bool scan_started = sta_iface->start_scan();
+        if (scan_started) {
+            TEST_ASSERT_TRUE(wait_for_condition([&]() {
+                return sta_callback_state.scan_started.load();
+            }));
+            sta_iface->stop_scan();
+            TEST_ASSERT_TRUE(wait_for_condition([&]() {
+                return sta_callback_state.scan_stopped.load();
+            }));
+        } else {
+            BROOKESIA_LOGW("Start scan failed, continue with remaining STA smoke coverage");
+        }
+
+        if (!has_wifi_test_credentials()) {
+            BROOKESIA_LOGW("CI Wi-Fi credentials are not configured, skip real connect/disconnect path");
+        } else {
+            TEST_ASSERT_TRUE(sta_iface->set_target_connect_ap_info(
+                                 hal::WifiConnectApInfo(HAL_ADAPTOR_TEST_WIFI_SSID, HAL_ADAPTOR_TEST_WIFI_PSW)
+                             ));
+            TEST_ASSERT_TRUE(sta_iface->do_sta_action(hal::WifiStaAction::Connect));
+            const bool connected_or_error = wait_for_condition([&]() {
+                return sta_callback_state.connected.load() || (sta_callback_state.error_count.load() > 0) ||
+                       sta_callback_state.disconnected.load() ||
+                       sta_iface->is_sta_event_ready(hal::WifiStaEvent::Disconnected);
+            }, 15000, 100);
+            TEST_ASSERT_TRUE(connected_or_error);
+
+            if (sta_callback_state.connected.load()) {
+                TEST_ASSERT_TRUE(sta_iface->is_sta_event_ready(hal::WifiStaEvent::Connected));
+                TEST_ASSERT_TRUE(sta_callback_state.last_connected_ap_updated.load());
+                TEST_ASSERT_TRUE(sta_callback_state.connected_ap_infos_updated.load());
+
+                TEST_ASSERT_TRUE(sta_iface->do_sta_action(hal::WifiStaAction::Disconnect));
+                TEST_ASSERT_TRUE(wait_for_condition([&]() {
+                    return sta_callback_state.disconnected.load() ||
+                           sta_iface->is_sta_event_ready(hal::WifiStaEvent::Disconnected);
+                }, 10000, 100));
+            } else {
+                BROOKESIA_LOGW("Real Wi-Fi connect did not succeed in current environment");
+            }
+        }
+
+        sta_iface->clear_callbacks();
+        basic_iface->clear_callbacks();
+        basic_iface->stop();
+        basic_iface->deinit();
+        scheduler->stop();
+    }
+
+    hal::deinit_device(hal::WifiDevice::DEVICE_NAME);
+}
+
+TEST_CASE("HAL adaptor: WifiSoftApIface smoke test", "[hal][adaptor][wifi][softap]")
+{
+    reset_and_init_device(
+        hal::WifiDevice::DEVICE_NAME,
+        BROOKESIA_HAL_ADAPTOR_ENABLE_WIFI_DEVICE,
+        "WiFi device is disabled by Kconfig"
+    );
+
+    auto basic_interfaces = get_interfaces_or_fail<hal::WifiBasicIface>(
+                                "No WifiBasicIface found after WifiDevice init"
+                            );
+    auto softap_interfaces = get_interfaces_or_fail<hal::WifiSoftApIface>(
+                                 "No WifiSoftApIface found after WifiDevice init"
+                             );
+    assert_common_interface_properties(basic_interfaces, hal::WifiDevice::DEVICE_NAME);
+    assert_common_interface_properties(softap_interfaces, hal::WifiDevice::DEVICE_NAME);
+
+    for (const auto &[iface_name, softap_iface] : softap_interfaces) {
+        auto basic_it = basic_interfaces.find(hal::WifiDevice::BASIC_IFACE_NAME);
+        TEST_ASSERT_TRUE(basic_it != basic_interfaces.end());
+        auto basic_iface = basic_it->second;
+        TEST_ASSERT_NOT_NULL(basic_iface.get());
+
+        BROOKESIA_LOGI("Testing Wi-Fi SoftAP interface %1%", iface_name);
+
+        auto scheduler = create_started_scheduler();
+        WifiSoftApCallbackState callback_state{};
+
+        TEST_ASSERT_TRUE(basic_iface->configure(
+        hal::WifiBasicIface::RuntimeContext{
+            .task_scheduler = scheduler,
+            .task_group = "hal-adaptor-wifi-softap",
+        },
+        {}
+                         ));
+        TEST_ASSERT_TRUE(softap_iface->configure({
+            .on_event = [&](hal::WifiSoftApEvent event)
+            {
+                if (event == hal::WifiSoftApEvent::Started) {
+                    callback_state.started = true;
+                } else if (event == hal::WifiSoftApEvent::Stopped) {
+                    callback_state.stopped = true;
+                }
+            },
+            .on_params_updated = [&](const hal::WifiSoftApParams &)
+            {
+                callback_state.params_updated = true;
+            },
+            .on_sta_action_requested = [&](hal::WifiStaAction action)
+            {
+                if (action == hal::WifiStaAction::Disconnect) {
+                    callback_state.disconnect_requested = true;
+                }
+                return true;
+            },
+        }));
+
+        TEST_ASSERT_TRUE(basic_iface->init());
+        TEST_ASSERT_TRUE(basic_iface->start());
+        TEST_ASSERT_TRUE(basic_iface->do_basic_action(hal::WifiBasicAction::Init));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return basic_iface->is_basic_event_ready(hal::WifiBasicEvent::Inited);
+        }));
+        TEST_ASSERT_TRUE(basic_iface->do_basic_action(hal::WifiBasicAction::Start));
+        TEST_ASSERT_TRUE(wait_for_condition([&]() {
+            return basic_iface->is_basic_event_ready(hal::WifiBasicEvent::Started);
+        }));
+
+        hal::WifiSoftApParams params = {
+            .ssid = "hal-softap",
+            .password = "12345678",
+            .max_connection = 3,
+            .channel = 6,
+        };
+        TEST_ASSERT_TRUE(softap_iface->set_softap_params(params));
+        TEST_ASSERT_TRUE(softap_iface->get_softap_params() == params);
+        TEST_ASSERT_TRUE(callback_state.params_updated.load());
+
+        if (softap_iface->start_softap()) {
+            TEST_ASSERT_TRUE(wait_for_condition([&]() {
+                return callback_state.started.load();
+            }, 10000, 100));
+            softap_iface->stop_softap();
+            TEST_ASSERT_TRUE(wait_for_condition([&]() {
+                return callback_state.stopped.load();
+            }, 10000, 100));
+        } else {
+            BROOKESIA_LOGW("Start SoftAP failed in current environment, skip strict event assertions");
+        }
+
+        callback_state.started = false;
+        callback_state.stopped = false;
+        if (softap_iface->start_softap_provision()) {
+            TEST_ASSERT_TRUE(wait_for_condition([&]() {
+                return callback_state.disconnect_requested.load();
+            }, 5000, 100));
+            const bool started = wait_for_condition([&]() {
+                return callback_state.started.load();
+            }, 10000, 100);
+            if (!started) {
+                BROOKESIA_LOGW("SoftAP provision start did not publish Started event in time");
+            }
+
+            TEST_ASSERT_TRUE(softap_iface->stop_softap_provision());
+            const bool stopped = wait_for_condition([&]() {
+                return callback_state.stopped.load();
+            }, 10000, 100);
+            if (!stopped) {
+                BROOKESIA_LOGW("SoftAP provision stop did not publish Stopped event in time");
+            }
+        } else {
+            BROOKESIA_LOGW("Start SoftAP provision failed in current environment");
+        }
+
+        softap_iface->clear_callbacks();
+        basic_iface->clear_callbacks();
+        basic_iface->stop();
+        basic_iface->deinit();
+        scheduler->stop();
+    }
+
+    hal::deinit_device(hal::WifiDevice::DEVICE_NAME);
 }
