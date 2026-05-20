@@ -56,13 +56,13 @@ extern "C" void app_main(void)
 {
     BROOKESIA_LOGI("\n\n=== Wifi Service Example ===\n");
 
+    // Initialize required devices from HAL adaptor
     BROOKESIA_CHECK_FALSE_EXIT(
         hal::init_device(hal::StorageDevice::DEVICE_NAME), "Failed to initialize storage HAL device"
     );
     lib_utils::FunctionGuard storage_hal_shutdown_guard([]() {
         hal::deinit_device(hal::StorageDevice::DEVICE_NAME);
     });
-
     BROOKESIA_CHECK_FALSE_EXIT(hal::init_device(hal::WifiDevice::DEVICE_NAME), "Failed to initialize WiFi HAL device");
     lib_utils::FunctionGuard wifi_hal_shutdown_guard([]() {
         hal::deinit_device(hal::WifiDevice::DEVICE_NAME);
@@ -72,7 +72,6 @@ extern "C" void app_main(void)
     auto &service_manager = service::ServiceManager::get_instance();
     BROOKESIA_CHECK_FALSE_EXIT(service_manager.init(), "Failed to initialize ServiceManager");
     BROOKESIA_CHECK_FALSE_EXIT(service_manager.start(), "Failed to start ServiceManager");
-
     // Use FunctionGuard for cleanup
     lib_utils::FunctionGuard shutdown_guard([&service_manager]() {
         BROOKESIA_LOGI("Shutting down ServiceManager...");

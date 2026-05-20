@@ -70,11 +70,13 @@ extern "C" void app_main(void)
 {
     BROOKESIA_LOGI("\n\n=== Device Service Example ===\n");
 
+    // Initialize all devices from HAL adaptor
     hal::init_all_devices();
 
+    // Initialize ServiceManager
     auto &service_manager = service::ServiceManager::get_instance();
     BROOKESIA_CHECK_FALSE_EXIT(service_manager.start(), "Failed to start ServiceManager");
-
+    // Use FunctionGuard for cleanup
     lib_utils::FunctionGuard shutdown_guard([&service_manager]() {
         BROOKESIA_LOGI("Shutting down ServiceManager...");
         service_manager.stop();

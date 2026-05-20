@@ -38,6 +38,10 @@ public:
      * @brief Callback invoked with the result of an asynchronous function call.
      */
     using FunctionResultHandler = std::function < void(FunctionResult &&) >;
+    /**
+     * @brief Callback invoked with the result of an asynchronous batched function call.
+     */
+    using FunctionBatchResultHandler = std::function < void(FunctionBatchResult &&) >;
 
     /**
      * @brief Service attributes configuration
@@ -179,6 +183,17 @@ public:
     );
 
     /**
+     * @brief Call multiple functions asynchronously on this service in order.
+     *
+     * The batch is fail-fast: once one function fails, later functions are skipped.
+     *
+     * @param[in] calls Function calls to execute.
+     * @param[in] handler FunctionBatchResultHandler to handle the batch result.
+     * @return true if the batch was accepted, false otherwise
+     */
+    bool call_functions_async(std::vector<FunctionCall> calls, FunctionBatchResultHandler handler = nullptr);
+
+    /**
      * @brief Call a function synchronously with parameters map (blocking with timeout)
      *
      * @param[in] name Function name to call
@@ -214,6 +229,18 @@ public:
      */
     FunctionResult call_function_sync(
         const std::string &name, const boost::json::object &parameters_json,
+        uint32_t timeout_ms = BROOKESIA_SERVICE_MANAGER_DEFAULT_CALL_FUNCTION_TIMEOUT_MS
+    );
+
+    /**
+     * @brief Call multiple functions synchronously on this service in order.
+     *
+     * @param[in] calls Function calls to execute.
+     * @param[in] timeout_ms Timeout in milliseconds.
+     * @return FunctionBatchResult Result of the batch call
+     */
+    FunctionBatchResult call_functions_sync(
+        std::vector<FunctionCall> calls,
         uint32_t timeout_ms = BROOKESIA_SERVICE_MANAGER_DEFAULT_CALL_FUNCTION_TIMEOUT_MS
     );
 

@@ -36,7 +36,7 @@ hal::WifiScanApInfoList make_scan_ap_infos()
 
 namespace esp_brookesia {
 
-bool TestWifiBackend::configure(hal::WifiBasicIface::RuntimeContext runtime, hal::WifiBasicIface::Callbacks callbacks)
+bool TestWifiBackend::configure_basic(hal::WifiBasicIface::RuntimeContext runtime, hal::WifiBasicIface::Callbacks callbacks)
 {
     if (!runtime.task_scheduler) {
         return false;
@@ -48,23 +48,38 @@ bool TestWifiBackend::configure(hal::WifiBasicIface::RuntimeContext runtime, hal
     return true;
 }
 
-bool TestWifiBackend::configure(hal::WifiStaIface::Callbacks callbacks)
+bool TestWifiBackend::configure_sta(hal::WifiStaIface::Callbacks callbacks)
 {
     sta_callbacks_ = std::move(callbacks);
     return true;
 }
 
-bool TestWifiBackend::configure(hal::WifiSoftApIface::Callbacks callbacks)
+bool TestWifiBackend::configure_softap(hal::WifiSoftApIface::Callbacks callbacks)
 {
     softap_callbacks_ = std::move(callbacks);
     return true;
 }
 
-void TestWifiBackend::clear_callbacks()
+void TestWifiBackend::clear_basic_callbacks()
 {
     basic_callbacks_ = {};
+}
+
+void TestWifiBackend::clear_sta_callbacks()
+{
     sta_callbacks_ = {};
+}
+
+void TestWifiBackend::clear_softap_callbacks()
+{
     softap_callbacks_ = {};
+}
+
+void TestWifiBackend::clear_all_callbacks()
+{
+    clear_basic_callbacks();
+    clear_sta_callbacks();
+    clear_softap_callbacks();
 }
 
 bool TestWifiBackend::init()
@@ -82,7 +97,7 @@ void TestWifiBackend::deinit()
     running_basic_action_ = hal::WifiBasicAction::Max;
     running_sta_action_ = hal::WifiStaAction::Max;
     runtime_ = {};
-    clear_callbacks();
+    clear_all_callbacks();
 }
 
 bool TestWifiBackend::start()
@@ -388,12 +403,182 @@ bool TestWifiDevice::probe()
     return true;
 }
 
+bool TestWifiBasicIface::configure(RuntimeContext runtime, Callbacks callbacks)
+{
+    return backend_->configure_basic(std::move(runtime), std::move(callbacks));
+}
+
+void TestWifiBasicIface::clear_callbacks()
+{
+    backend_->clear_basic_callbacks();
+}
+
+bool TestWifiBasicIface::init()
+{
+    return backend_->init();
+}
+
+void TestWifiBasicIface::deinit()
+{
+    backend_->deinit();
+}
+
+bool TestWifiBasicIface::start()
+{
+    return backend_->start();
+}
+
+void TestWifiBasicIface::stop()
+{
+    backend_->stop();
+}
+
+void TestWifiBasicIface::reset_data()
+{
+    backend_->reset_data();
+}
+
+bool TestWifiBasicIface::do_basic_action(hal::WifiBasicAction action, bool is_force)
+{
+    return backend_->do_basic_action(action, is_force);
+}
+
+bool TestWifiBasicIface::is_basic_action_running(hal::WifiBasicAction action)
+{
+    return backend_->is_basic_action_running(action);
+}
+
+bool TestWifiBasicIface::is_basic_event_ready(hal::WifiBasicEvent event)
+{
+    return backend_->is_basic_event_ready(event);
+}
+
+bool TestWifiStaIface::configure(Callbacks callbacks)
+{
+    return backend_->configure_sta(std::move(callbacks));
+}
+
+void TestWifiStaIface::clear_callbacks()
+{
+    backend_->clear_sta_callbacks();
+}
+
+bool TestWifiStaIface::do_sta_action(hal::WifiStaAction action, bool is_force)
+{
+    return backend_->do_sta_action(action, is_force);
+}
+
+bool TestWifiStaIface::is_sta_action_running(hal::WifiStaAction action)
+{
+    return backend_->is_sta_action_running(action);
+}
+
+bool TestWifiStaIface::is_sta_event_ready(hal::WifiStaEvent event)
+{
+    return backend_->is_sta_event_ready(event);
+}
+
+void TestWifiStaIface::mark_target_connect_ap_info_connectable(bool connectable)
+{
+    backend_->mark_target_connect_ap_info_connectable(connectable);
+}
+
+bool TestWifiStaIface::set_target_connect_ap_info(const hal::WifiConnectApInfo &ap_info)
+{
+    return backend_->set_target_connect_ap_info(ap_info);
+}
+
+bool TestWifiStaIface::set_last_connected_ap_info(const hal::WifiConnectApInfo &ap_info)
+{
+    return backend_->set_last_connected_ap_info(ap_info);
+}
+
+bool TestWifiStaIface::set_connected_ap_infos(const hal::WifiConnectApInfoList &ap_infos)
+{
+    return backend_->set_connected_ap_infos(ap_infos);
+}
+
+const hal::WifiConnectApInfo &TestWifiStaIface::get_target_connect_ap_info() const
+{
+    return backend_->get_target_connect_ap_info();
+}
+
+const hal::WifiConnectApInfo &TestWifiStaIface::get_last_connected_ap_info() const
+{
+    return backend_->get_last_connected_ap_info();
+}
+
+const hal::WifiConnectApInfoList &TestWifiStaIface::get_connected_ap_infos() const
+{
+    return backend_->get_connected_ap_infos();
+}
+
+bool TestWifiStaIface::set_scan_params(const hal::WifiScanParams &params)
+{
+    return backend_->set_scan_params(params);
+}
+
+const hal::WifiScanParams &TestWifiStaIface::get_scan_params() const
+{
+    return backend_->get_scan_params();
+}
+
+bool TestWifiStaIface::start_scan()
+{
+    return backend_->start_scan();
+}
+
+void TestWifiStaIface::stop_scan()
+{
+    backend_->stop_scan();
+}
+
+bool TestWifiSoftApIface::configure(Callbacks callbacks)
+{
+    return backend_->configure_softap(std::move(callbacks));
+}
+
+void TestWifiSoftApIface::clear_callbacks()
+{
+    backend_->clear_softap_callbacks();
+}
+
+bool TestWifiSoftApIface::set_softap_params(const hal::WifiSoftApParams &params)
+{
+    return backend_->set_softap_params(params);
+}
+
+const hal::WifiSoftApParams &TestWifiSoftApIface::get_softap_params() const
+{
+    return backend_->get_softap_params();
+}
+
+bool TestWifiSoftApIface::start_softap()
+{
+    return backend_->start_softap();
+}
+
+void TestWifiSoftApIface::stop_softap()
+{
+    backend_->stop_softap();
+}
+
+bool TestWifiSoftApIface::start_softap_provision()
+{
+    return backend_->start_softap_provision();
+}
+
+bool TestWifiSoftApIface::stop_softap_provision()
+{
+    return backend_->stop_softap_provision();
+}
+
 bool TestWifiDevice::on_init()
 {
     backend_ = std::make_shared<TestWifiBackend>();
-    interfaces_.emplace(TestWifiBackend::BASIC_NAME, std::static_pointer_cast<hal::WifiBasicIface>(backend_));
-    interfaces_.emplace(TestWifiBackend::STA_NAME, std::static_pointer_cast<hal::WifiStaIface>(backend_));
-    interfaces_.emplace(TestWifiBackend::SOFTAP_NAME, std::static_pointer_cast<hal::WifiSoftApIface>(backend_));
+    interfaces_.emplace(TestWifiBackend::BASIC_NAME, std::make_shared<TestWifiBasicIface>(backend_));
+    interfaces_.emplace(TestWifiBackend::STA_NAME, std::make_shared<TestWifiStaIface>(backend_));
+    interfaces_.emplace(TestWifiBackend::SOFTAP_NAME, std::make_shared<TestWifiSoftApIface>(backend_));
     return true;
 }
 

@@ -50,6 +50,7 @@ extern "C" void app_main(void)
 {
     BROOKESIA_LOGI("\n\n=== NVS Service Example ===\n");
 
+    // Initialize required devices from HAL adaptor
     BROOKESIA_CHECK_FALSE_EXIT(
         hal::init_device(hal::StorageDevice::DEVICE_NAME), "Failed to initialize storage HAL device"
     );

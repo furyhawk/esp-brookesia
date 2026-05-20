@@ -19,6 +19,7 @@ target_include_directories(${COMPONENT_LIB}
 target_link_libraries(${COMPONENT_LIB}
     INTERFACE
         brookesia::service_manager
+        brookesia::hal_interface
         brookesia::lib_utils
         brookesia::hal_interface
 )

@@ -202,8 +202,29 @@ void WifiEspBackend::clear_callbacks()
 {
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
+    clear_basic_callbacks();
+    clear_sta_callbacks();
+    clear_softap_callbacks();
+}
+
+void WifiEspBackend::clear_basic_callbacks()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
     basic_callbacks_ = {};
+}
+
+void WifiEspBackend::clear_sta_callbacks()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
     sta_callbacks_ = {};
+}
+
+void WifiEspBackend::clear_softap_callbacks()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
     softap_callbacks_ = {};
 }
 
@@ -297,9 +318,73 @@ void WifiEspBackend::notify_softap_event(WifiSoftApEvent event)
 
 void WifiEspBackend::notify_softap_params_updated(const WifiSoftApParams &params)
 {
+    softap_params_cache_ = params;
+
     if (softap_callbacks_.on_params_updated) {
         softap_callbacks_.on_params_updated(params);
     }
+}
+
+bool WifiEspBackend::start_softap()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
+    BROOKESIA_CHECK_NULL_RETURN(softap_, false, "SoftAP is not initialized");
+
+    return softap_->start_softap();
+}
+
+void WifiEspBackend::stop_softap()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
+    if (softap_ == nullptr) {
+        BROOKESIA_LOGD("SoftAP is not initialized, skip stop");
+        return;
+    }
+
+    softap_->stop_softap();
+}
+
+bool WifiEspBackend::set_softap_params(const WifiSoftApParams &params)
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
+    softap_params_cache_ = params;
+
+    if (softap_ == nullptr) {
+        BROOKESIA_LOGD("SoftAP is not initialized, cache params only");
+        return true;
+    }
+
+    return softap_->set_softap_params(params);
+}
+
+const WifiSoftApParams &WifiEspBackend::get_softap_params() const
+{
+    if (softap_ == nullptr) {
+        return softap_params_cache_;
+    }
+
+    return softap_->get_softap_params();
+}
+
+bool WifiEspBackend::start_softap_provision()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
+    BROOKESIA_CHECK_NULL_RETURN(softap_, false, "SoftAP is not initialized");
+
+    return softap_->start_softap_provision();
+}
+
+bool WifiEspBackend::stop_softap_provision()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
+    BROOKESIA_CHECK_NULL_RETURN(softap_, false, "SoftAP is not initialized");
+
+    return softap_->stop_softap_provision();
 }
 
 bool WifiEspBackend::init()
@@ -324,6 +409,9 @@ bool WifiEspBackend::init()
 
     BROOKESIA_CHECK_EXCEPTION_RETURN(
         softap_ = std::make_unique<SoftAp>(this), false, "Create SoftAP failed"
+    );
+    BROOKESIA_CHECK_FALSE_RETURN(
+        softap_->set_softap_params(softap_params_cache_), false, "Sync cached SoftAP params failed"
     );
 
     deinit_guard.release();
@@ -457,6 +545,7 @@ void WifiEspBackend::reset_data()
     set_last_connected_ap_info(WifiConnectApInfo());
     set_connected_ap_infos(std::list<WifiConnectApInfo>());
     set_scan_params(WifiScanParams());
+    softap_params_cache_ = WifiSoftApParams();
     if (softap_ != nullptr) {
         softap_->reset_data();
     }
@@ -1275,6 +1364,33 @@ bool WifiEspBackend::on_ip_event(uint8_t event)
     auto event_id = static_cast<ip_event_t>(event);
     switch (event_id) {
     case IP_EVENT_STA_GOT_IP: {
+        auto connected_ap_info = get_target_connect_ap_info();
+        if (connected_ap_info.is_valid()) {
+            connected_ap_info.is_connectable = true;
+
+            BROOKESIA_CHECK_FALSE_EXECUTE(set_last_connected_ap_info(connected_ap_info), {}, {
+                BROOKESIA_LOGE("Failed to update last connected AP info");
+            });
+            notify_last_connected_ap_info_updated(connected_ap_info);
+
+            auto connected_ap_infos = get_connected_ap_infos();
+            auto duplicate_it = std::find_if(
+                                    connected_ap_infos.begin(), connected_ap_infos.end(),
+            [&connected_ap_info](const WifiConnectApInfo & info) {
+                return info.ssid == connected_ap_info.ssid;
+            }
+                                );
+            if (duplicate_it != connected_ap_infos.end()) {
+                *duplicate_it = connected_ap_info;
+            } else {
+                connected_ap_infos.push_back(connected_ap_info);
+            }
+            BROOKESIA_CHECK_FALSE_EXECUTE(set_connected_ap_infos(connected_ap_infos), {}, {
+                BROOKESIA_LOGE("Failed to update connected AP info list");
+            });
+            notify_connected_ap_infos_updated();
+        }
+
         trigger_general_event(WifiGeneralEvent::Connected);
         break;
     }

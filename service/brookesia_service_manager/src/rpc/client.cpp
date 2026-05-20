@@ -238,6 +238,8 @@ bool Client::init(boost::asio::io_context::executor_type executor, DisconnectCal
         on_data_received(data);
     });
     data_link_->set_on_connection_closed([this](size_t connection_id) {
+        (void)connection_id;
+
         BROOKESIA_LOGD("Connection(%1%) closed by server", connection_id);
         if (on_disconnect_callback_) {
             on_disconnect_callback_();

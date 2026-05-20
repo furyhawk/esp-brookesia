@@ -29,6 +29,8 @@ bool DataLinkBase::handle_receive(std::shared_ptr<ConnectionInfo> connection)
 
     boost::asio::async_read_until(*connection->socket, connection->receive_buffer, '\n',
     [this, connection](const boost::system::error_code & ec, std::size_t bytes_transferred) {
+        (void)bytes_transferred;
+
         BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
         BROOKESIA_LOGD("Param: ec(%1%), bytes_transferred(%2%)", ec.message(), bytes_transferred);
@@ -86,6 +88,8 @@ bool DataLinkBase::handle_send(std::shared_ptr<ConnectionInfo> connection, std::
 
     boost::asio::async_write(*connection->socket, boost::asio::buffer(*data_ptr),
     [this, connection, data_ptr](const boost::system::error_code & ec, std::size_t bytes_transferred) {
+        (void)bytes_transferred;
+
         BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
         BROOKESIA_LOGD("Param: ec(%1%), bytes_transferred(%2%)", ec.message(), bytes_transferred);

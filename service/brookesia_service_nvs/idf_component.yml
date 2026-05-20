@@ -8,6 +8,7 @@ dependencies:
     version: "0.7.*"
     override_path: "../../hal/brookesia_hal_interface"
     require: public
+
   espressif/brookesia_service_helper:
     version: "0.7.*"
     override_path: "../brookesia_service_helper"

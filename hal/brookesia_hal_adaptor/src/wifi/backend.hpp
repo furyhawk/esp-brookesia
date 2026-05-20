@@ -42,48 +42,51 @@ BROOKESIA_DESCRIBE_ENUM(
 
 using WifiStateFlags = std::bitset<BROOKESIA_DESCRIBE_ENUM_TO_NUM(WifiStateFlagBit::Max)>;
 
-class WifiEspBackend: public WifiBasicIface, public WifiStaIface, public WifiSoftApIface {
+class WifiEspBackend {
 public:
     friend class SoftAp;
 
     WifiEspBackend() = default;
     ~WifiEspBackend();
 
-    bool configure(WifiBasicIface::RuntimeContext runtime, WifiBasicIface::Callbacks callbacks) override;
-    bool configure(WifiStaIface::Callbacks callbacks) override;
-    bool configure(WifiSoftApIface::Callbacks callbacks) override;
-    void clear_callbacks() override;
+    bool configure(WifiBasicIface::RuntimeContext runtime, WifiBasicIface::Callbacks callbacks);
+    bool configure(WifiStaIface::Callbacks callbacks);
+    bool configure(WifiSoftApIface::Callbacks callbacks);
+    void clear_basic_callbacks();
+    void clear_sta_callbacks();
+    void clear_softap_callbacks();
+    void clear_callbacks();
 
-    bool init() override;
-    void deinit() override;
-    bool start() override;
-    void stop() override;
-    void reset_data() override;
+    bool init();
+    void deinit();
+    bool start();
+    void stop();
+    void reset_data();
 
-    bool do_basic_action(WifiBasicAction action, bool is_force = false) override;
-    bool is_basic_action_running(WifiBasicAction action) override;
-    bool is_basic_event_ready(WifiBasicEvent event) override;
+    bool do_basic_action(WifiBasicAction action, bool is_force = false);
+    bool is_basic_action_running(WifiBasicAction action);
+    bool is_basic_event_ready(WifiBasicEvent event);
 
-    bool do_sta_action(WifiStaAction action, bool is_force = false) override;
-    bool is_sta_action_running(WifiStaAction action) override;
-    bool is_sta_event_ready(WifiStaEvent event) override;
+    bool do_sta_action(WifiStaAction action, bool is_force = false);
+    bool is_sta_action_running(WifiStaAction action);
+    bool is_sta_event_ready(WifiStaEvent event);
 
     /**
      * @brief Connect related
      */
-    void mark_target_connect_ap_info_connectable(bool connectable) override;
-    bool set_target_connect_ap_info(const WifiConnectApInfo &ap_info) override;
-    bool set_last_connected_ap_info(const WifiConnectApInfo &ap_info) override;
-    bool set_connected_ap_infos(const WifiConnectApInfoList &ap_infos) override;
-    const WifiConnectApInfo &get_target_connect_ap_info() const override
+    void mark_target_connect_ap_info_connectable(bool connectable);
+    bool set_target_connect_ap_info(const WifiConnectApInfo &ap_info);
+    bool set_last_connected_ap_info(const WifiConnectApInfo &ap_info);
+    bool set_connected_ap_infos(const WifiConnectApInfoList &ap_infos);
+    const WifiConnectApInfo &get_target_connect_ap_info() const
     {
         return target_connect_ap_info_;
     }
-    const WifiConnectApInfo &get_last_connected_ap_info() const override
+    const WifiConnectApInfo &get_last_connected_ap_info() const
     {
         return last_connected_ap_info_;
     }
-    const WifiConnectApInfoList &get_connected_ap_infos() const override
+    const WifiConnectApInfoList &get_connected_ap_infos() const
     {
         return connected_ap_info_list_;
     }
@@ -91,10 +94,10 @@ public:
     /**
      * @brief Scan related
      */
-    bool set_scan_params(const WifiScanParams &params) override;
-    bool start_scan() override;
-    void stop_scan() override;
-    const WifiScanParams &get_scan_params() const override
+    bool set_scan_params(const WifiScanParams &params);
+    bool start_scan();
+    void stop_scan();
+    const WifiScanParams &get_scan_params() const
     {
         return scan_params_;
     }
@@ -102,30 +105,12 @@ public:
     /**
      * @brief SoftAP related
      */
-    bool start_softap() override
-    {
-        return softap_->start_softap();
-    }
-    void stop_softap() override
-    {
-        softap_->stop_softap();
-    }
-    bool set_softap_params(const WifiSoftApParams &params) override
-    {
-        return softap_->set_softap_params(params);
-    }
-    const WifiSoftApParams &get_softap_params() const override
-    {
-        return softap_->get_softap_params();
-    }
-    bool start_softap_provision() override
-    {
-        return softap_->start_softap_provision();
-    }
-    bool stop_softap_provision() override
-    {
-        return softap_->stop_softap_provision();
-    }
+    bool start_softap();
+    void stop_softap();
+    bool set_softap_params(const WifiSoftApParams &params);
+    const WifiSoftApParams &get_softap_params() const;
+    bool start_softap_provision();
+    bool stop_softap_provision();
 
 private:
     bool is_initialized()
@@ -224,6 +209,7 @@ private:
     lib_utils::TaskScheduler::TaskId scan_periodic_task_ = 0;
     lib_utils::TaskScheduler::TaskId scan_ap_timeout_task_ = 0;
 
+    WifiSoftApParams softap_params_cache_{};
     std::unique_ptr<SoftAp> softap_;
 };
 

@@ -89,6 +89,8 @@ void DataLinkServer::stop()
 
 void DataLinkServer::on_handle_receive_error(std::shared_ptr<ConnectionInfo> connection, const boost::system::error_code &error)
 {
+    (void)error;
+
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
     BROOKESIA_LOGD("Params: connection(%1%), error(%2%)", BROOKESIA_DESCRIBE_TO_STR(connection), error.message());
@@ -98,6 +100,8 @@ void DataLinkServer::on_handle_receive_error(std::shared_ptr<ConnectionInfo> con
 
 void DataLinkServer::on_handle_send_error(std::shared_ptr<ConnectionInfo> connection, const boost::system::error_code &error)
 {
+    (void)error;
+
     BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
 
     BROOKESIA_LOGD("Params: connection(%1%), error(%2%)", BROOKESIA_DESCRIBE_TO_STR(connection), error.message());

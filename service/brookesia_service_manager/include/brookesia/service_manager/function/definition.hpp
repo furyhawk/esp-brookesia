@@ -154,4 +154,33 @@ struct FunctionResult {
 };
 BROOKESIA_DESCRIBE_STRUCT(FunctionResult, (), (success, error_message, data));
 
+/**
+ * @brief One function call entry used by batched calls on the same service.
+ */
+struct FunctionCall {
+    std::string name;
+    FunctionParameterMap parameters;
+};
+BROOKESIA_DESCRIBE_STRUCT(FunctionCall, (), (name, parameters));
+
+/**
+ * @brief Result of one function call entry in a batch.
+ */
+struct FunctionCallResult {
+    std::string name;
+    bool success = false;
+    std::string error_message = "";
+    std::optional<FunctionValue> data = std::nullopt;
+};
+BROOKESIA_DESCRIBE_STRUCT(FunctionCallResult, (), (name, success, error_message, data));
+
+/**
+ * @brief Result wrapper for a batched function call.
+ */
+struct FunctionBatchResult {
+    bool success = false;
+    std::vector<FunctionCallResult> results;
+};
+BROOKESIA_DESCRIBE_STRUCT(FunctionBatchResult, (), (success, results));
+
 } // namespace esp_brookesia::service

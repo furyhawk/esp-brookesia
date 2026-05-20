@@ -19,9 +19,9 @@
 
 namespace esp_brookesia::hal {
 
-class WifiSimulatorBackend: public WifiBasicIface, public WifiStaIface, public WifiSoftApIface {
+class WifiSimulatorBackend {
 public:
-    bool configure(WifiBasicIface::RuntimeContext runtime, WifiBasicIface::Callbacks callbacks) override
+    bool configure(WifiBasicIface::RuntimeContext runtime, WifiBasicIface::Callbacks callbacks)
     {
         task_scheduler_ = std::move(runtime.task_scheduler);
         task_group_ = runtime.task_group;
@@ -29,32 +29,47 @@ public:
         return true;
     }
 
-    bool configure(WifiStaIface::Callbacks callbacks) override
+    bool configure(WifiStaIface::Callbacks callbacks)
     {
         sta_callbacks_ = std::move(callbacks);
         return true;
     }
 
-    bool configure(WifiSoftApIface::Callbacks callbacks) override
+    bool configure(WifiSoftApIface::Callbacks callbacks)
     {
         softap_callbacks_ = std::move(callbacks);
         return true;
     }
 
-    void clear_callbacks() override
+    void clear_basic_callbacks()
     {
         basic_callbacks_ = {};
+    }
+
+    void clear_sta_callbacks()
+    {
         sta_callbacks_ = {};
+    }
+
+    void clear_softap_callbacks()
+    {
         softap_callbacks_ = {};
     }
 
-    bool init() override
+    void clear_callbacks()
+    {
+        clear_basic_callbacks();
+        clear_sta_callbacks();
+        clear_softap_callbacks();
+    }
+
+    bool init()
     {
         backend_initialized_ = true;
         return true;
     }
 
-    void deinit() override
+    void deinit()
     {
         connected_ = false;
         started_ = false;
@@ -65,7 +80,7 @@ public:
         clear_callbacks();
     }
 
-    bool start() override
+    bool start()
     {
         if (!backend_initialized_) {
             return false;
@@ -74,7 +89,7 @@ public:
         return true;
     }
 
-    void stop() override
+    void stop()
     {
         stop_scan();
         stop_softap();
@@ -83,7 +98,7 @@ public:
         connected_ = false;
     }
 
-    void reset_data() override
+    void reset_data()
     {
         target_ap_ = {};
         last_ap_ = {};
@@ -93,7 +108,7 @@ public:
         softap_params_ = {};
     }
 
-    bool do_basic_action(WifiBasicAction action, bool is_force = false) override
+    bool do_basic_action(WifiBasicAction action, bool is_force = false)
     {
         if (!is_running_) {
             return false;
@@ -136,12 +151,12 @@ public:
         return true;
     }
 
-    bool is_basic_action_running(WifiBasicAction action) override
+    bool is_basic_action_running(WifiBasicAction action)
     {
         return running_basic_action_ == action;
     }
 
-    bool is_basic_event_ready(WifiBasicEvent event) override
+    bool is_basic_event_ready(WifiBasicEvent event)
     {
         switch (event) {
         case WifiBasicEvent::Inited:
@@ -157,7 +172,7 @@ public:
         }
     }
 
-    bool do_sta_action(WifiStaAction action, bool is_force = false) override
+    bool do_sta_action(WifiStaAction action, bool is_force = false)
     {
         if (!is_running_) {
             return false;
@@ -202,12 +217,12 @@ public:
         return true;
     }
 
-    bool is_sta_action_running(WifiStaAction action) override
+    bool is_sta_action_running(WifiStaAction action)
     {
         return running_sta_action_ == action;
     }
 
-    bool is_sta_event_ready(WifiStaEvent event) override
+    bool is_sta_event_ready(WifiStaEvent event)
     {
         switch (event) {
         case WifiStaEvent::Connected:
@@ -219,56 +234,56 @@ public:
         }
     }
 
-    void mark_target_connect_ap_info_connectable(bool connectable) override
+    void mark_target_connect_ap_info_connectable(bool connectable)
     {
         target_ap_.is_connectable = connectable;
     }
 
-    bool set_target_connect_ap_info(const WifiConnectApInfo &ap_info) override
+    bool set_target_connect_ap_info(const WifiConnectApInfo &ap_info)
     {
         target_ap_ = ap_info;
         return true;
     }
 
-    bool set_last_connected_ap_info(const WifiConnectApInfo &ap_info) override
+    bool set_last_connected_ap_info(const WifiConnectApInfo &ap_info)
     {
         last_ap_ = ap_info;
         return true;
     }
 
-    bool set_connected_ap_infos(const WifiConnectApInfoList &ap_infos) override
+    bool set_connected_ap_infos(const WifiConnectApInfoList &ap_infos)
     {
         connected_aps_ = ap_infos;
         return true;
     }
 
-    const WifiConnectApInfo &get_target_connect_ap_info() const override
+    const WifiConnectApInfo &get_target_connect_ap_info() const
     {
         return target_ap_;
     }
 
-    const WifiConnectApInfo &get_last_connected_ap_info() const override
+    const WifiConnectApInfo &get_last_connected_ap_info() const
     {
         return last_ap_;
     }
 
-    const WifiConnectApInfoList &get_connected_ap_infos() const override
+    const WifiConnectApInfoList &get_connected_ap_infos() const
     {
         return connected_aps_;
     }
 
-    bool set_scan_params(const WifiScanParams &params) override
+    bool set_scan_params(const WifiScanParams &params)
     {
         scan_params_ = params;
         return true;
     }
 
-    const WifiScanParams &get_scan_params() const override
+    const WifiScanParams &get_scan_params() const
     {
         return scan_params_;
     }
 
-    bool start_scan() override
+    bool start_scan()
     {
         if (is_scanning_) {
             return true;
@@ -309,7 +324,7 @@ public:
         return true;
     }
 
-    void stop_scan() override
+    void stop_scan()
     {
         if (!is_scanning_) {
             return;
@@ -320,18 +335,18 @@ public:
         }
     }
 
-    bool set_softap_params(const WifiSoftApParams &params) override
+    bool set_softap_params(const WifiSoftApParams &params)
     {
         softap_params_ = params;
         return true;
     }
 
-    const WifiSoftApParams &get_softap_params() const override
+    const WifiSoftApParams &get_softap_params() const
     {
         return softap_params_;
     }
 
-    bool start_softap() override
+    bool start_softap()
     {
         softap_started_ = true;
         if (softap_callbacks_.on_event) {
@@ -340,7 +355,7 @@ public:
         return true;
     }
 
-    void stop_softap() override
+    void stop_softap()
     {
         if (!softap_started_) {
             return;
@@ -351,13 +366,13 @@ public:
         }
     }
 
-    bool start_softap_provision() override
+    bool start_softap_provision()
     {
         provision_running_ = true;
         return start_softap();
     }
 
-    bool stop_softap_provision() override
+    bool stop_softap_provision()
     {
         provision_running_ = false;
         stop_softap();
@@ -455,6 +470,213 @@ private:
     WifiSoftApIface::Callbacks softap_callbacks_;
 };
 
+namespace {
+
+class WifiSimulatorBasicIface: public WifiBasicIface {
+public:
+    explicit WifiSimulatorBasicIface(std::shared_ptr<WifiSimulatorBackend> backend)
+        : backend_(std::move(backend))
+    {
+    }
+
+    bool configure(RuntimeContext runtime, Callbacks callbacks) override
+    {
+        return backend_->configure(std::move(runtime), std::move(callbacks));
+    }
+
+    void clear_callbacks() override
+    {
+        backend_->clear_basic_callbacks();
+    }
+
+    bool init() override
+    {
+        return backend_->init();
+    }
+
+    void deinit() override
+    {
+        backend_->deinit();
+    }
+
+    bool start() override
+    {
+        return backend_->start();
+    }
+
+    void stop() override
+    {
+        backend_->stop();
+    }
+
+    void reset_data() override
+    {
+        backend_->reset_data();
+    }
+
+    bool do_basic_action(WifiBasicAction action, bool is_force = false) override
+    {
+        return backend_->do_basic_action(action, is_force);
+    }
+
+    bool is_basic_action_running(WifiBasicAction action) override
+    {
+        return backend_->is_basic_action_running(action);
+    }
+
+    bool is_basic_event_ready(WifiBasicEvent event) override
+    {
+        return backend_->is_basic_event_ready(event);
+    }
+
+private:
+    std::shared_ptr<WifiSimulatorBackend> backend_;
+};
+
+class WifiSimulatorStaIface: public WifiStaIface {
+public:
+    explicit WifiSimulatorStaIface(std::shared_ptr<WifiSimulatorBackend> backend)
+        : backend_(std::move(backend))
+    {
+    }
+
+    bool configure(Callbacks callbacks) override
+    {
+        return backend_->configure(std::move(callbacks));
+    }
+
+    void clear_callbacks() override
+    {
+        backend_->clear_sta_callbacks();
+    }
+
+    bool do_sta_action(WifiStaAction action, bool is_force = false) override
+    {
+        return backend_->do_sta_action(action, is_force);
+    }
+
+    bool is_sta_action_running(WifiStaAction action) override
+    {
+        return backend_->is_sta_action_running(action);
+    }
+
+    bool is_sta_event_ready(WifiStaEvent event) override
+    {
+        return backend_->is_sta_event_ready(event);
+    }
+
+    void mark_target_connect_ap_info_connectable(bool connectable) override
+    {
+        backend_->mark_target_connect_ap_info_connectable(connectable);
+    }
+
+    bool set_target_connect_ap_info(const WifiConnectApInfo &ap_info) override
+    {
+        return backend_->set_target_connect_ap_info(ap_info);
+    }
+
+    bool set_last_connected_ap_info(const WifiConnectApInfo &ap_info) override
+    {
+        return backend_->set_last_connected_ap_info(ap_info);
+    }
+
+    bool set_connected_ap_infos(const WifiConnectApInfoList &ap_infos) override
+    {
+        return backend_->set_connected_ap_infos(ap_infos);
+    }
+
+    const WifiConnectApInfo &get_target_connect_ap_info() const override
+    {
+        return backend_->get_target_connect_ap_info();
+    }
+
+    const WifiConnectApInfo &get_last_connected_ap_info() const override
+    {
+        return backend_->get_last_connected_ap_info();
+    }
+
+    const WifiConnectApInfoList &get_connected_ap_infos() const override
+    {
+        return backend_->get_connected_ap_infos();
+    }
+
+    bool set_scan_params(const WifiScanParams &params) override
+    {
+        return backend_->set_scan_params(params);
+    }
+
+    const WifiScanParams &get_scan_params() const override
+    {
+        return backend_->get_scan_params();
+    }
+
+    bool start_scan() override
+    {
+        return backend_->start_scan();
+    }
+
+    void stop_scan() override
+    {
+        backend_->stop_scan();
+    }
+
+private:
+    std::shared_ptr<WifiSimulatorBackend> backend_;
+};
+
+class WifiSimulatorSoftApIface: public WifiSoftApIface {
+public:
+    explicit WifiSimulatorSoftApIface(std::shared_ptr<WifiSimulatorBackend> backend)
+        : backend_(std::move(backend))
+    {
+    }
+
+    bool configure(Callbacks callbacks) override
+    {
+        return backend_->configure(std::move(callbacks));
+    }
+
+    void clear_callbacks() override
+    {
+        backend_->clear_softap_callbacks();
+    }
+
+    bool set_softap_params(const WifiSoftApParams &params) override
+    {
+        return backend_->set_softap_params(params);
+    }
+
+    const WifiSoftApParams &get_softap_params() const override
+    {
+        return backend_->get_softap_params();
+    }
+
+    bool start_softap() override
+    {
+        return backend_->start_softap();
+    }
+
+    void stop_softap() override
+    {
+        backend_->stop_softap();
+    }
+
+    bool start_softap_provision() override
+    {
+        return backend_->start_softap_provision();
+    }
+
+    bool stop_softap_provision() override
+    {
+        return backend_->stop_softap_provision();
+    }
+
+private:
+    std::shared_ptr<WifiSimulatorBackend> backend_;
+};
+
+} // namespace
+
 bool WifiSimulatorDevice::probe()
 {
     return true;
@@ -468,9 +690,9 @@ bool WifiSimulatorDevice::on_init()
         backend_ = std::make_shared<WifiSimulatorBackend>(), false, "Failed to create Wi-Fi simulator backend"
     );
 
-    interfaces_.emplace(BASIC_IFACE_NAME, std::static_pointer_cast<WifiBasicIface>(backend_));
-    interfaces_.emplace(STA_IFACE_NAME, std::static_pointer_cast<WifiStaIface>(backend_));
-    interfaces_.emplace(SOFTAP_IFACE_NAME, std::static_pointer_cast<WifiSoftApIface>(backend_));
+    interfaces_.emplace(BASIC_IFACE_NAME, std::make_shared<WifiSimulatorBasicIface>(backend_));
+    interfaces_.emplace(STA_IFACE_NAME, std::make_shared<WifiSimulatorStaIface>(backend_));
+    interfaces_.emplace(SOFTAP_IFACE_NAME, std::make_shared<WifiSimulatorSoftApIface>(backend_));
 
     return true;
 }
