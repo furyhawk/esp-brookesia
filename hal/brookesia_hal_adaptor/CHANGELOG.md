@@ -40,7 +40,7 @@
 - feat(kconfig): restructure Kconfig with granular per-subsystem debug log options for `AudioDevice`, `CodecPlayer`, `CodecRecorder`, `DisplayDevice`, `LedcBacklight`, `LcdPanel`, `LcdTouch`, `StorageDevice`, `GeneralFS`
 - feat(kconfig): add `ENABLE_STORAGE_DEVICE` and `STORAGE_ENABLE_GENERAL_FS_IMPL` with `ENABLE_SPIFFS` / `ENABLE_SDCARD` sub-options
 - feat(macro): expand `macro_configs.h` with all per-subsystem enable/debug macros for audio, display, and storage
-- feat(test): restructure test apps with per-board configuration directories for `esp32_p4_function_ev`, `esp32_s3_korvo2_v3`, `esp_box_3`, `esp_sensair_shuttle`, `esp_vocat_board_v1_0/1_2`
+- feat(test): restructure test apps with per-board configuration directories for `esp32_p4x_function_ev`, `esp32_s3_korvo2_v3`, `esp_box_3`, `esp_sensair_shuttle`, `esp_vocat_board_v1_0/1_2`
 - feat(test): add `idf_ext.py` for dynamic board config injection in test app builds
 - feat(docs): update `README.md` and `README_CN.md` to reflect new architecture and usage
 

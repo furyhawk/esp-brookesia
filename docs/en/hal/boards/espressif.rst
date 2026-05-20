@@ -73,6 +73,18 @@ Espressif Boards
        | :cpp:class:`DisplayTouch <esp_brookesia::hal::DisplayTouchIface>`
        | :cpp:class:`DisplayBacklight <esp_brookesia::hal::DisplayBacklightIface>`
        | :cpp:class:`StorageFs <esp_brookesia::hal::StorageFsIface>`
+   * - ``esp32_p4x_function_ev``
+     - - *ESP32-P4*
+       - *Wi-Fi*
+       - *Flash 16MB*
+       - *PSRAM 32MB*
+     - `ESP32-P4X Function-EV Board <https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32p4/esp32-p4x-function-ev-board/index.html>`_
+     - | :cpp:class:`AudioCodecPlayer <esp_brookesia::hal::AudioCodecPlayerIface>`
+       | :cpp:class:`AudioCodecRecorder <esp_brookesia::hal::AudioCodecRecorderIface>`
+       | :cpp:class:`DisplayPanel <esp_brookesia::hal::DisplayPanelIface>`
+       | :cpp:class:`DisplayTouch <esp_brookesia::hal::DisplayTouchIface>`
+       | :cpp:class:`DisplayBacklight <esp_brookesia::hal::DisplayBacklightIface>`
+       | :cpp:class:`StorageFs <esp_brookesia::hal::StorageFsIface>`
    * - ``esp_sensair_shuttle``
      - - *ESP32-C5*
        - *Wi-Fi*

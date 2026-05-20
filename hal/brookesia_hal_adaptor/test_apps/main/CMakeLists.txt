@@ -1,8 +1,7 @@
 idf_component_register(
     SRC_DIRS "."
     INCLUDE_DIRS "."
-    PRIV_REQUIRES unity gen_bmgr_codes esp_psram
-    WHOLE_ARCHIVE
+    WHOLE_ARCHIVE TRUE
 )
 
 if(DEFINED ENV{CI_TEST_WIFI_2_4G_AP1_SSID})

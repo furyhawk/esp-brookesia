@@ -158,14 +158,14 @@ TEST_CASE("StorageFsIface: get_all_info returns mounted file systems", "[hal][in
 
     hal::StorageFsIface::Capacity capacity = {};
     TEST_ASSERT_TRUE(iface->get_capacity("/spiffs", capacity));
-    TEST_ASSERT_EQUAL_UINT64(1024 * 1024, capacity.total_bytes);
-    TEST_ASSERT_EQUAL_UINT64(256 * 1024, capacity.used_bytes);
-    TEST_ASSERT_EQUAL_UINT64(768 * 1024, capacity.free_bytes);
+    TEST_ASSERT_EQUAL_UINT32(1024 * 1024, capacity.total_bytes);
+    TEST_ASSERT_EQUAL_UINT32(256 * 1024, capacity.used_bytes);
+    TEST_ASSERT_EQUAL_UINT32(768 * 1024, capacity.free_bytes);
 
     TEST_ASSERT_TRUE(iface->get_capacity("/littlefs", capacity));
-    TEST_ASSERT_EQUAL_UINT64(2 * 1024 * 1024, capacity.total_bytes);
-    TEST_ASSERT_EQUAL_UINT64(512 * 1024, capacity.used_bytes);
-    TEST_ASSERT_EQUAL_UINT64(1536 * 1024, capacity.free_bytes);
+    TEST_ASSERT_EQUAL_UINT32(2 * 1024 * 1024, capacity.total_bytes);
+    TEST_ASSERT_EQUAL_UINT32(512 * 1024, capacity.used_bytes);
+    TEST_ASSERT_EQUAL_UINT32(1536 * 1024, capacity.free_bytes);
 
     TEST_ASSERT_FALSE(iface->get_capacity("/missing", capacity));
 

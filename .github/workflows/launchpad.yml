@@ -86,11 +86,12 @@ jobs:
           #
           # Espressif boards
           #
+          - espressif/esp_box_3
+          - espressif/esp32_s3_korvo2_v3
           - espressif/esp_vocat_board_v1_0
           - espressif/esp_vocat_board_v1_2
-          - espressif/esp_box_3
           - espressif/esp32_p4_function_ev
-          - espressif/esp32_s3_korvo2_v3
+          - espressif/esp32_p4x_function_ev
           # - espressif/esp_sensair_shuttle # TODO: ESP32-C5 chip is not supported by Launchpad yet
           #
           # RYMCU boards
@@ -151,11 +152,12 @@ jobs:
           #
           # Espressif boards
           #
+          - espressif/esp_box_3
+          - espressif/esp32_s3_korvo2_v3
           - espressif/esp_vocat_board_v1_0
           - espressif/esp_vocat_board_v1_2
-          - espressif/esp_box_3
           - espressif/esp32_p4_function_ev
-          - espressif/esp32_s3_korvo2_v3
+          - espressif/esp32_p4x_function_ev
           # - espressif/esp_sensair_shuttle # TODO: ESP32-C5 chip is not supported by Launchpad yet
           #
           # RYMCU boards

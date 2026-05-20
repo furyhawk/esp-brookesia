@@ -676,7 +676,7 @@ TEST_CASE("HAL adaptor: StorageFsIface smoke test", "[hal][adaptor][storage][fs]
             hal::StorageFsIface::Capacity capacity = {};
             TEST_ASSERT_TRUE(iface->get_capacity(info.mount_point, capacity));
             TEST_ASSERT_GREATER_OR_EQUAL_UINT64(capacity.used_bytes, capacity.total_bytes);
-            TEST_ASSERT_EQUAL_UINT64(capacity.total_bytes - capacity.used_bytes, capacity.free_bytes);
+            TEST_ASSERT_EQUAL_UINT32(capacity.total_bytes - capacity.used_bytes, capacity.free_bytes);
         }
     }
 

@@ -29,8 +29,8 @@ Steps to run these test cases:
    # ESP32-S3 example: esp_vocat_board_v1_2
    python .gitlab/tools/build_apps.py examples/service/console -t esp32s3 --config "sdkconfig.ci.board.esp_vocat_board_v1_2=esp_vocat_board_v1_2"
 
-   # ESP32-P4 example: esp32_p4_function_ev
-   python .gitlab/tools/build_apps.py examples/service/console -t esp32p4 --config "sdkconfig.ci.board.esp32_p4_function_ev=esp32_p4_function_ev"
+   # ESP32-P4 example: esp32_p4x_function_ev
+   python .gitlab/tools/build_apps.py examples/service/console -t esp32p4 --config "sdkconfig.ci.board.esp32_p4x_function_ev=esp32_p4x_function_ev"
    ```
 
    **Build for all CI boards (recommended for CI):**
@@ -65,8 +65,8 @@ Steps to run these test cases:
 
    **ESP32-P4 examples:**
    ```bash
-   # Multiple environments: generic, eco4, esp32p4_function_ev_board
-   pytest examples/service/console --target esp32p4 --env "generic,eco4,esp32p4_function_ev_board"
+   # Multiple environments: generic, eco4, esp32p4x_function_ev_board
+   pytest examples/service/console --target esp32p4 --env "esp32p4x_function_ev_board"
    ```
 '''
 
@@ -754,9 +754,9 @@ def test_esp32s3_esp_vocat_board_v1_2(dut: Dut) -> None:
 
 
 @pytest.mark.target('esp32p4')
-@pytest.mark.env('generic,eco4,esp32p4_function_ev_board')
-@pytest.mark.parametrize('target, config', [('esp32p4', 'esp32_p4_function_ev')])
+@pytest.mark.env('esp32p4x_function_ev_board')
+@pytest.mark.parametrize('target, config', [('esp32p4', 'esp32_p4x_function_ev')])
 @pytest.mark.timeout(20 * 60)
-def test_esp32p4_function_ev_board(dut: Dut) -> None:
+def test_esp32p4x_function_ev_board(dut: Dut) -> None:
     """Test all command groups (incl. tutorial flow) on ESP32-P4 Function EV Board."""
     test_service_console_commands(dut)
