@@ -302,6 +302,39 @@ menu "ESP-Brookesia: Hal Adaptor Configurations"
                         Format the LittleFS partition when mount fails.
             endif
 
+            config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_FATFS_FLASH
+                bool "Flash FATFS"
+                default n
+                help
+                    Enable the flash FATFS filesystem mounted through wear levelling.
+
+            if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_FATFS_FLASH
+                config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_FATFS_FLASH_BASE_PATH
+                    string "Flash FATFS base path"
+                    default "/fatfs"
+                    help
+                        Base path used to mount the flash FATFS filesystem.
+
+                config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_FATFS_FLASH_PARTITION_LABEL
+                    string "Flash FATFS partition label"
+                    default "fatfs_data"
+                    help
+                        Partition label used to mount the flash FATFS filesystem.
+
+                config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_FATFS_FLASH_FORMAT_IF_MOUNT_FAILED
+                    bool "Format flash FATFS if mount failed"
+                    default n
+                    help
+                        Format the flash FATFS partition when mount fails.
+
+                config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_FATFS_FLASH_MAX_FILES
+                    int "Flash FATFS max open files"
+                    default 4
+                    range 1 16
+                    help
+                        Maximum number of files that can be open at the same time.
+            endif
+
             config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SDCARD
                 bool "SD card (FATFS)"
                 depends on ESP_BOARD_DEV_FS_FAT_SUPPORT

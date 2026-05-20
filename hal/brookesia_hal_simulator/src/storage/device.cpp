@@ -5,6 +5,7 @@
  */
 #include <map>
 #include <mutex>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -179,13 +180,37 @@ public:
                 .fs_type = FileSystemType::SPIFFS,
                 .medium_type = MediumType::Flash,
                 .mount_point = "/spiffs",
+                .supports_directories = false,
             },
             Info{
                 .fs_type = FileSystemType::LittleFS,
                 .medium_type = MediumType::Flash,
                 .mount_point = "/littlefs",
+                .supports_directories = true,
             },
         };
+    }
+
+    bool get_capacity(const char *mount_point, Capacity &capacity) override
+    {
+        if (std::string(mount_point) == "/spiffs") {
+            capacity = {
+                .total_bytes = 1024 * 1024,
+                .used_bytes = 128 * 1024,
+                .free_bytes = 896 * 1024,
+            };
+            return true;
+        }
+        if (std::string(mount_point) == "/littlefs") {
+            capacity = {
+                .total_bytes = 2 * 1024 * 1024,
+                .used_bytes = 256 * 1024,
+                .free_bytes = 1792 * 1024,
+            };
+            return true;
+        }
+
+        return false;
     }
 };
 

@@ -2,46 +2,89 @@ set(COMPONENT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(COMPONENT_INCLUDE_DIRS ${COMPONENT_DIR}/include)
 set(COMPONENT_PRIVATE_INCLUDE_DIRS ${COMPONENT_DIR}/src)
 set(COMPONENT_EMBED_TXTFILES "")
-set(COMPONENT_PRIV_REQUIRES "esp_wifi nvs_flash esp_event esp_http_server esp_netif lwip littlefs")
 set(COMPONENT_SRCS_CPP "")
 
-file(GLOB_RECURSE PRIVATE_SRCS_CPP ${COMPONENT_DIR}/src/private/*.cpp)
-list(APPEND COMPONENT_SRCS_CPP ${PRIVATE_SRCS_CPP})
+macro(brookesia_hal_adaptor_append_sources)
+    list(APPEND COMPONENT_SRCS_CPP ${ARGN})
+endmacro()
+
+macro(brookesia_hal_adaptor_optional_private_requires condition)
+    if(${condition})
+        idf_component_optional_requires(PRIVATE ${ARGN})
+    endif()
+endmacro()
+
+set(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER FALSE)
+set(BROOKESIA_HAL_ADAPTOR_NEEDS_NVS_FLASH FALSE)
+set(BROOKESIA_HAL_ADAPTOR_NEEDS_LITTLEFS FALSE)
+set(BROOKESIA_HAL_ADAPTOR_NEEDS_SPIFFS FALSE)
+set(BROOKESIA_HAL_ADAPTOR_NEEDS_FATFS FALSE)
+set(BROOKESIA_HAL_ADAPTOR_NEEDS_WEAR_LEVELLING FALSE)
+set(BROOKESIA_HAL_ADAPTOR_NEEDS_WIFI_STACK FALSE)
 
 if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_GENERAL_DEVICE)
     file(GLOB_RECURSE GENERAL_SRCS_CPP ${COMPONENT_DIR}/src/general/*.cpp)
-    list(APPEND COMPONENT_SRCS_CPP ${GENERAL_SRCS_CPP})
+    brookesia_hal_adaptor_append_sources(${GENERAL_SRCS_CPP})
+    set(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER TRUE)
 endif()
 
 if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_AUDIO_DEVICE)
     file(GLOB_RECURSE AUDIO_SRCS_CPP ${COMPONENT_DIR}/src/audio/*.cpp)
-    list(APPEND COMPONENT_SRCS_CPP ${AUDIO_SRCS_CPP})
+    brookesia_hal_adaptor_append_sources(${AUDIO_SRCS_CPP})
+    set(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER TRUE)
 endif()
 
 if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_DISPLAY_DEVICE)
     file(GLOB_RECURSE DISPLAY_SRCS_CPP ${COMPONENT_DIR}/src/display/*.cpp)
-    list(APPEND COMPONENT_SRCS_CPP ${DISPLAY_SRCS_CPP})
+    brookesia_hal_adaptor_append_sources(${DISPLAY_SRCS_CPP})
+    set(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER TRUE)
 endif()
 
 if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_STORAGE_DEVICE)
-    list(APPEND COMPONENT_SRCS_CPP ${COMPONENT_DIR}/src/storage/device.cpp)
+    brookesia_hal_adaptor_append_sources(${COMPONENT_DIR}/src/storage/device.cpp)
     if(CONFIG_BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_GENERAL_FS_IMPL)
-        list(APPEND COMPONENT_SRCS_CPP ${COMPONENT_DIR}/src/storage/general_fs_impl.cpp)
+        brookesia_hal_adaptor_append_sources(${COMPONENT_DIR}/src/storage/general_fs_impl.cpp)
+
+        if(CONFIG_BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SPIFFS)
+            set(BROOKESIA_HAL_ADAPTOR_NEEDS_SPIFFS TRUE)
+            set(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER TRUE)
+        endif()
+        if(CONFIG_BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_LITTLEFS)
+            set(BROOKESIA_HAL_ADAPTOR_NEEDS_LITTLEFS TRUE)
+        endif()
+        if(CONFIG_BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_FATFS_FLASH)
+            set(BROOKESIA_HAL_ADAPTOR_NEEDS_FATFS TRUE)
+            set(BROOKESIA_HAL_ADAPTOR_NEEDS_WEAR_LEVELLING TRUE)
+        endif()
+        if(CONFIG_BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SDCARD)
+            set(BROOKESIA_HAL_ADAPTOR_NEEDS_FATFS TRUE)
+            set(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER TRUE)
+        endif()
     endif()
     if(CONFIG_BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_KV_IMPL)
-        list(APPEND COMPONENT_SRCS_CPP ${COMPONENT_DIR}/src/storage/kv_nvs_impl.cpp)
+        brookesia_hal_adaptor_append_sources(${COMPONENT_DIR}/src/storage/kv_nvs_impl.cpp)
+        set(BROOKESIA_HAL_ADAPTOR_NEEDS_NVS_FLASH TRUE)
     endif()
 endif()
 
 if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_POWER_DEVICE)
     file(GLOB_RECURSE POWER_SRCS_CPP ${COMPONENT_DIR}/src/power/*.cpp)
-    list(APPEND COMPONENT_SRCS_CPP ${POWER_SRCS_CPP})
+    brookesia_hal_adaptor_append_sources(${POWER_SRCS_CPP})
+    set(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER TRUE)
 endif()
 
 if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_WIFI_DEVICE)
     file(GLOB_RECURSE WIFI_SRCS_CPP ${COMPONENT_DIR}/src/wifi/*.cpp)
-    list(APPEND COMPONENT_SRCS_CPP ${WIFI_SRCS_CPP})
-    list(APPEND COMPONENT_EMBED_TXTFILES ${COMPONENT_DIR}/src/wifi/wifi_provision.html)
+    brookesia_hal_adaptor_append_sources(${WIFI_SRCS_CPP})
+    list(APPEND COMPONENT_EMBED_TXTFILES
+        ${COMPONENT_DIR}/src/wifi/wifi_provision.html
+    )
+    set(BROOKESIA_HAL_ADAPTOR_NEEDS_WIFI_STACK TRUE)
+    set(BROOKESIA_HAL_ADAPTOR_NEEDS_NVS_FLASH TRUE)
+endif()
+
+if(BROOKESIA_HAL_ADAPTOR_NEEDS_NVS_FLASH)
+    brookesia_hal_adaptor_append_sources(${COMPONENT_DIR}/src/private/nvs_flash_manager.cpp)
 endif()
 
 #
@@ -52,18 +95,28 @@ idf_component_register(
     INCLUDE_DIRS ${COMPONENT_INCLUDE_DIRS}
     PRIV_INCLUDE_DIRS ${COMPONENT_PRIVATE_INCLUDE_DIRS}
     REQUIRES ${COMPONENT_REQUIRES}
-    PRIV_REQUIRES ${COMPONENT_PRIV_REQUIRES}
     EMBED_TXTFILES ${COMPONENT_EMBED_TXTFILES}
 )
 
-if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_GENERAL_DEVICE OR
-    CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_AUDIO_DEVICE OR
-    CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_DISPLAY_DEVICE OR
-    (CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_STORAGE_DEVICE AND
-    CONFIG_BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_GENERAL_FS_IMPL) OR
-    CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_POWER_DEVICE)
-    idf_component_optional_requires(PRIVATE esp_board_manager espressif__esp_board_manager)
-endif()
+brookesia_hal_adaptor_optional_private_requires(BROOKESIA_HAL_ADAPTOR_NEEDS_BOARD_MANAGER
+    esp_board_manager
+    espressif__esp_board_manager
+)
+brookesia_hal_adaptor_optional_private_requires(BROOKESIA_HAL_ADAPTOR_NEEDS_SPIFFS spiffs)
+brookesia_hal_adaptor_optional_private_requires(BROOKESIA_HAL_ADAPTOR_NEEDS_LITTLEFS
+    littlefs
+    joltwallet__littlefs
+)
+brookesia_hal_adaptor_optional_private_requires(BROOKESIA_HAL_ADAPTOR_NEEDS_FATFS fatfs)
+brookesia_hal_adaptor_optional_private_requires(BROOKESIA_HAL_ADAPTOR_NEEDS_WEAR_LEVELLING wear_levelling)
+brookesia_hal_adaptor_optional_private_requires(BROOKESIA_HAL_ADAPTOR_NEEDS_NVS_FLASH nvs_flash)
+brookesia_hal_adaptor_optional_private_requires(BROOKESIA_HAL_ADAPTOR_NEEDS_WIFI_STACK
+    esp_event
+    esp_http_server
+    esp_netif
+    esp_wifi
+    lwip
+)
 if(CONFIG_BROOKESIA_HAL_ADAPTOR_ENABLE_WIFI_DEVICE)
     if(CONFIG_IDF_TARGET_ESP32P4)
         idf_component_optional_requires(PRIVATE

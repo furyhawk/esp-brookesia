@@ -409,3 +409,11 @@
   - "examples/service/wifi/partitions*.csv"
   - "examples/service/wifi/pytest_*.py"
   - "examples/service/wifi/sdkconfig.*"
+# storage/fatfs/fatfsgen
+.patterns-examples_storage_fatfs_fatfsgen:
+  - "examples/storage/fatfs/fatfsgen/main/**/*"
+  - "examples/storage/fatfs/fatfsgen/fatfs_image/**/*"
+  - "examples/storage/fatfs/fatfsgen/CMakeLists.txt"
+  - "examples/storage/fatfs/fatfsgen/partitions*.csv"
+  - "examples/storage/fatfs/fatfsgen/pytest_*.py"
+  - "examples/storage/fatfs/fatfsgen/sdkconfig.*"

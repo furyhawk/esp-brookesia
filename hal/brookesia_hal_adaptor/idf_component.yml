@@ -14,7 +14,8 @@ dependencies:
     require: no
 
   joltwallet/littlefs:
-    version: "~=1.20.0"
+    version: "1.*"
+    require: no
 
   # Remote WiFi support for ESP32-P4
   espressif/esp_wifi_remote:

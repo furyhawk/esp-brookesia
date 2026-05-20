@@ -229,6 +229,9 @@ void startup()
     opt.time_unit = lib_utils::TimeProfiler::FormatOptions::TimeUnit::Milliseconds;
     time_profiler.set_format_options(opt);
 
+    TEST_ASSERT_TRUE_MESSAGE(hal::init_device(hal::StorageDevice::DEVICE_NAME), "Failed to initialize storage HAL device");
+    TEST_ASSERT_TRUE_MESSAGE(hal::init_device(hal::WifiDevice::DEVICE_NAME), "Failed to initialize WiFi HAL device");
+
     TEST_ASSERT_TRUE_MESSAGE(service_manager.start(), "Failed to start service manager");
 
     if (!nvs_binding.is_valid()) {
@@ -247,7 +250,7 @@ void shutdown()
     nvs_binding.release();
     wifi_binding.release();
     service_manager.deinit();
-    hal::deinit_device(hal::WifiDevice::DEVICE_NAME);
+    hal::deinit_all_devices();
     time_profiler.report();
     time_profiler.clear();
 }

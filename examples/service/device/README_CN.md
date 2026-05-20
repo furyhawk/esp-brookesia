@@ -130,7 +130,7 @@
 
 ### 存储查询
 
-当 `StorageFs` 可用时，调用 `GetStorageFileSystems` 并打印当前已挂载的文件系统信息，包括文件系统类型、介质类型和挂载点。
+当 `StorageFs` 可用时，调用 `GetStorageFileSystems` 并打印当前已挂载的文件系统信息，包括文件系统类型、介质类型、挂载点和目录支持能力。随后对每个挂载点调用 `GetStorageFileSystemCapacity` 并打印当前容量。
 
 ### 电池状态与充电控制
 

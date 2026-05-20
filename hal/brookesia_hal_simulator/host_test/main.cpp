@@ -230,9 +230,18 @@ bool test_storage()
     ok &= expect(fs_infos[0].fs_type == hal::StorageFsIface::FileSystemType::SPIFFS, "first FS type matches");
     ok &= expect(fs_infos[0].medium_type == hal::StorageFsIface::MediumType::Flash, "first FS medium matches");
     ok &= expect(std::string(fs_infos[0].mount_point) == "/spiffs", "first FS mount point matches");
+    ok &= expect(!fs_infos[0].supports_directories, "first FS directory support matches");
     ok &= expect(fs_infos[1].fs_type == hal::StorageFsIface::FileSystemType::LittleFS, "second FS type matches");
     ok &= expect(fs_infos[1].medium_type == hal::StorageFsIface::MediumType::Flash, "second FS medium matches");
     ok &= expect(std::string(fs_infos[1].mount_point) == "/littlefs", "second FS mount point matches");
+    ok &= expect(fs_infos[1].supports_directories, "second FS directory support matches");
+
+    hal::StorageFsIface::Capacity capacity = {};
+    ok &= expect(fs->get_capacity("/spiffs", capacity), "storage FS gets SPIFFS capacity");
+    ok &= expect(capacity.total_bytes == 1024 * 1024, "storage FS SPIFFS total capacity matches");
+    ok &= expect(fs->get_capacity("/littlefs", capacity), "storage FS gets LittleFS capacity");
+    ok &= expect(capacity.total_bytes == 2 * 1024 * 1024, "storage FS LittleFS total capacity matches");
+    ok &= expect(!fs->get_capacity("/missing", capacity), "storage FS rejects missing capacity mount point");
 
     return ok;
 }

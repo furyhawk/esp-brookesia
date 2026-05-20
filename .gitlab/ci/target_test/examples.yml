@@ -127,3 +127,21 @@ target_test_examples_service_wifi:
     TEST_TARGET: ${IDF_TARGET}
     TEST_FOLDER: examples/service/wifi
     TEST_ENV: ${ENV_TAG}
+# storage/fatfs/fatfsgen
+target_test_examples_storage_fatfs_fatfsgen:
+  extends:
+    - .target_test_template
+    - .rules:build:examples_storage_fatfs_fatfsgen
+  needs:
+    - job: "build_examples_storage_fatfs_fatfsgen"
+      artifacts: true
+      optional: true
+  parallel:
+    matrix: !reference [.target_test_idf_target_version_general_matrix]
+  tags:
+    - ${IDF_TARGET}
+    - ${ENV_TAG}
+  variables:
+    TEST_TARGET: ${IDF_TARGET}
+    TEST_FOLDER: examples/storage/fatfs/fatfsgen
+    TEST_ENV: ${ENV_TAG}

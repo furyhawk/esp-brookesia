@@ -130,7 +130,9 @@ When `AudioCodecPlayer` is available, the example demonstrates volume and mute c
 
 ### Storage Query
 
-When `StorageFs` is available, the example calls `GetStorageFileSystems` and prints all mounted file systems, including file system type, medium type, and mount point.
+When `StorageFs` is available, the example calls `GetStorageFileSystems` and prints all mounted file systems,
+including file system type, medium type, mount point, and directory support. It then calls
+`GetStorageFileSystemCapacity` for each mount point and prints the current capacity.
 
 ### Battery State and Charge Control
 

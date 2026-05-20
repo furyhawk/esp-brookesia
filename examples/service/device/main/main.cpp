@@ -350,7 +350,7 @@ static bool demo_board_info(const DeviceHelper::Capabilities &capabilities)
 
     DeviceHelper::BoardInfo board_info{};
     BROOKESIA_CHECK_FALSE_RETURN(get_board_info(board_info), false, "Failed to get board info");
-    BROOKESIA_LOGI("Board info: %1%", boost::json::serialize(BROOKESIA_DESCRIBE_TO_JSON(board_info)));
+    BROOKESIA_LOGI("Board info: %1%", board_info);
 
     BROOKESIA_LOGI("\n\n--- Demo: Board Info Completed ---\n");
 
@@ -603,9 +603,35 @@ static bool demo_storage_query(const DeviceHelper::Capabilities &capabilities)
     auto result = DeviceHelper::call_function_sync<boost::json::array>(DeviceHelper::FunctionId::GetStorageFileSystems);
     BROOKESIA_CHECK_FALSE_RETURN(result, false, "Failed to get storage file systems: %1%", result.error());
 
-    BROOKESIA_LOGI(
-        "Storage file systems: %1%", boost::json::serialize(boost::json::value(result.value()))
-    );
+    BROOKESIA_LOGI("Storage file systems: %1%", result);
+
+    for (const auto &item : result.value()) {
+        if (!item.is_object()) {
+            BROOKESIA_LOGW("Invalid storage file-system info: %1%", item);
+            continue;
+        }
+
+        const auto &info = item.as_object();
+        auto mount_point_it = info.find("mount_point");
+        if ((mount_point_it == info.end()) || !mount_point_it->value().is_string()) {
+            BROOKESIA_LOGW("Missing storage mount point: %1%", item);
+            continue;
+        }
+        std::string mount_point(mount_point_it->value().as_string().c_str());
+
+        auto capacity_result = DeviceHelper::call_function_sync<boost::json::object>(
+                                   DeviceHelper::FunctionId::GetStorageFileSystemCapacity,
+                                   mount_point
+                               );
+        if (!capacity_result) {
+            BROOKESIA_LOGW(
+                "Failed to get storage capacity for %1%: %2%", mount_point, capacity_result.error()
+            );
+            continue;
+        }
+
+        BROOKESIA_LOGI("Storage capacity for %1%: %2%", mount_point, capacity_result.value());
+    }
 
     BROOKESIA_LOGI("\n\n--- Demo: Storage Query Completed ---\n");
 
@@ -632,11 +658,11 @@ static bool demo_power_battery(const DeviceHelper::Capabilities &capabilities)
 
     DeviceHelper::PowerBatteryInfo battery_info{};
     BROOKESIA_CHECK_FALSE_RETURN(get_power_battery_info(battery_info), false, "Failed to get power battery info");
-    BROOKESIA_LOGI("Battery info: %1%", boost::json::serialize(BROOKESIA_DESCRIBE_TO_JSON(battery_info)));
+    BROOKESIA_LOGI("Battery info: %1%", battery_info);
 
     DeviceHelper::PowerBatteryState battery_state{};
     BROOKESIA_CHECK_FALSE_RETURN(get_power_battery_state(battery_state), false, "Failed to get power battery state");
-    BROOKESIA_LOGI("Battery state: %1%", boost::json::serialize(BROOKESIA_DESCRIBE_TO_JSON(battery_state)));
+    BROOKESIA_LOGI("Battery state: %1%", battery_state);
 
     DeviceHelper::PowerBatteryChargeConfig charge_config{};
     const auto has_charge_config = battery_info.has_ability(hal::PowerBatteryIface::Ability::ChargeConfig);
@@ -644,7 +670,7 @@ static bool demo_power_battery(const DeviceHelper::Capabilities &capabilities)
         BROOKESIA_CHECK_FALSE_RETURN(
             get_power_battery_charge_config(charge_config), false, "Failed to get power battery charge config"
         );
-        BROOKESIA_LOGI("Battery charge config: %1%", boost::json::serialize(BROOKESIA_DESCRIBE_TO_JSON(charge_config)));
+        BROOKESIA_LOGI("Battery charge config: %1%", charge_config);
     } else {
         BROOKESIA_LOGW("Power battery charge config is not supported by this board, skip charge config query");
     }
@@ -661,9 +687,7 @@ static bool demo_power_battery(const DeviceHelper::Capabilities &capabilities)
         if (got_state_event) {
             auto last_state_event = state_event_monitor.get_last<boost::json::object>();
             if (last_state_event.has_value()) {
-                BROOKESIA_LOGI(
-                    "[Monitor] Battery state event: %1%", boost::json::serialize(std::get<0>(last_state_event.value()))
-                );
+                BROOKESIA_LOGI("[Monitor] Battery state event: %1%", std::get<0>(last_state_event.value()));
             }
         } else {
             BROOKESIA_LOGW("No battery state event received after charging state refresh");
@@ -674,8 +698,7 @@ static bool demo_power_battery(const DeviceHelper::Capabilities &capabilities)
             auto last_charge_config_event = charge_config_event_monitor.get_last<boost::json::object>();
             if (last_charge_config_event.has_value()) {
                 BROOKESIA_LOGI(
-                    "[Monitor] Battery charge config event: %1%",
-                    boost::json::serialize(std::get<0>(last_charge_config_event.value()))
+                    "[Monitor] Battery charge config event: %1%", std::get<0>(last_charge_config_event.value())
                 );
             }
         } else {

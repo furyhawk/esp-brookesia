@@ -74,3 +74,14 @@ build_examples_service_wifi:
     - .rules:build:examples_service_wifi
   variables:
     EXAMPLE_DIR: examples/service/wifi
+#
+# Storage
+#
+# storage/fatfs/fatfsgen
+build_examples_storage_fatfs_fatfsgen:
+  extends:
+    - .build_template
+    - .build_idf_release_version_general
+    - .rules:build:examples_storage_fatfs_fatfsgen
+  variables:
+    EXAMPLE_DIR: examples/storage/fatfs/fatfsgen
