@@ -127,12 +127,3 @@ devices:
           clk: 2                         # GPIO_NUM_16
           cmd: 1                         # GPIO_NUM_38
           d0: 3                          # GPIO_NUM_17
-
-  - name: fs_spiffs          # The name of the device, must be unique
-    type: fs_spiffs          # The type of the device, must be unique
-    version: 1.0.0
-    config:
-      base_path: "/spiffs"            # The base path for mounting the SPIFFS filesystem
-      partition_label: "spiffs_data"  # The partition label for the SPIFFS filesystem
-      max_files: 5                    # The maximum number of files that can be open simultaneously
-      format_if_mount_failed: false   # Format the card if mount fails

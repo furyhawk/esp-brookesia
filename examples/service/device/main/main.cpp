@@ -41,7 +41,7 @@ constexpr size_t WAV_HEADER_SIZE = 44;
 constexpr uint32_t DEVICE_WAIT_EVENT_TIMEOUT_MS = EXAMPLE_TEST_ACTION_DELAY_MS;
 constexpr uint32_t DISPLAY_COLOR_BAR_REFRESH_LINES = 16;
 constexpr uint32_t DISPLAY_COLOR_BAR_REFRESH_DELAY_MS = 20;
-constexpr const char *AUDIO_PCM_FILE_PATH = "/spiffs/audio.pcm";
+constexpr const char *AUDIO_PCM_FILE_PATH = "/littlefs/audio.pcm";
 
 static bool get_capabilities(DeviceHelper::Capabilities &capabilities);
 static bool get_board_info(DeviceHelper::BoardInfo &info);

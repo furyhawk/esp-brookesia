@@ -23,7 +23,7 @@ using AudioHelper = esp_brookesia::service::helper::Audio;
 using WifiHelper = esp_brookesia::service::helper::Wifi;
 using DeviceHelper = esp_brookesia::service::helper::Device;
 
-#define XIAO_ZHI_AUDIO_URL_PREFIX "file://spiffs/xiaozhi/"
+#define XIAO_ZHI_AUDIO_URL_PREFIX "file://littlefs/xiaozhi/"
 
 constexpr const char *AUDIO_WAKEUP_WORD_MODEL_PARTITION_LABEL = "model";
 constexpr const char *AUDIO_WAKEUP_WORD_MN_LANGUAGE = "cn";

@@ -30,6 +30,7 @@ bool StorageDevice::on_init()
 #if BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_KV_IMPL
     BROOKESIA_CHECK_FALSE_RETURN(init_kv(), false, "Failed to init KV storage");
 #endif
+    BROOKESIA_CHECK_FALSE_RETURN(!interfaces_.empty(), false, "No valid storage interfaces found");
 
     return true;
 }

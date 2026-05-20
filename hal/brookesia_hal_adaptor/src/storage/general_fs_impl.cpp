@@ -13,6 +13,9 @@
 #include "brookesia/lib_utils/thread_config.hpp"
 #include "brookesia/lib_utils/function_guard.hpp"
 #include "general_fs_impl.hpp"
+#if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_LITTLEFS
+#include "esp_littlefs.h"
+#endif
 
 #if BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_GENERAL_FS_IMPL
 
@@ -23,6 +26,9 @@ GeneralStorageFsImpl::GeneralStorageFsImpl()
 #if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SPIFFS
     BROOKESIA_CHECK_FALSE_EXECUTE(init_spiffs(), {}, { BROOKESIA_LOGE("Failed to initialize SPIFFS"); });
 #endif
+#if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_LITTLEFS
+    BROOKESIA_CHECK_FALSE_EXECUTE(init_littlefs(), {}, { BROOKESIA_LOGE("Failed to initialize LittleFS"); });
+#endif
 #if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SDCARD
     BROOKESIA_CHECK_FALSE_EXECUTE(init_sdcard(), {}, { BROOKESIA_LOGE("Failed to initialize SD card"); });
 #endif
@@ -32,6 +38,9 @@ GeneralStorageFsImpl::~GeneralStorageFsImpl()
 {
 #if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SPIFFS
     deinit_spiffs();
+#endif
+#if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_LITTLEFS
+    deinit_littlefs();
 #endif
 #if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SDCARD
     deinit_sdcard();
@@ -88,6 +97,63 @@ void GeneralStorageFsImpl::deinit_spiffs()
 
     auto ret = esp_board_manager_deinit_device_by_name(ESP_BOARD_DEVICE_NAME_FS_SPIFFS);
     BROOKESIA_CHECK_ESP_ERR_EXECUTE(ret, {}, { BROOKESIA_LOGE("Failed to deinitialize SPIFFS"); });
+}
+#endif
+
+#if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_LITTLEFS
+bool GeneralStorageFsImpl::init_littlefs()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
+    esp_err_t ret = ESP_OK;
+    esp_vfs_littlefs_conf_t config = {};
+    config.base_path = BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_BASE_PATH;
+    config.partition_label = BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_PARTITION_LABEL;
+    config.format_if_mount_failed = BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_FORMAT_IF_MOUNT_FAILED;
+    config.dont_mount = false;
+    auto init_func = [&ret, &config]() {
+        BROOKESIA_LOG_TRACE_GUARD();
+        ret = esp_vfs_littlefs_register(&config);
+    };
+    if (!lib_utils::ThreadConfig::check_stack_cache_safe()) {
+        // Since initializing LittleFS operates on Flash,
+        // a separate thread with its stack located in SRAM needs to be created to prevent a crash.
+        BROOKESIA_THREAD_CONFIG_GUARD({
+            .stack_in_ext = false,
+        });
+        std::thread(init_func).join();
+    } else {
+        init_func();
+    }
+    BROOKESIA_CHECK_ESP_ERR_RETURN(ret, false, "Failed to initialize LittleFS");
+    lib_utils::FunctionGuard deinit_guard([this]() {
+        BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+        esp_vfs_littlefs_unregister(BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_PARTITION_LABEL);
+    });
+
+    size_t total_size = 0;
+    size_t used_size = 0;
+    ret = esp_littlefs_info(BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_PARTITION_LABEL, &total_size, &used_size);
+    BROOKESIA_CHECK_ESP_ERR_RETURN(ret, false, "Failed to get LittleFS partition information");
+    BROOKESIA_LOGI("LittleFS partition size: total: %1%, used: %2%", total_size, used_size);
+
+    info_list_.emplace_back(Info {
+        .fs_type = FileSystemType::LittleFS,
+        .medium_type = MediumType::Flash,
+        .mount_point = BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_BASE_PATH,
+    });
+
+    deinit_guard.release();
+
+    return true;
+}
+
+void GeneralStorageFsImpl::deinit_littlefs()
+{
+    BROOKESIA_LOG_TRACE_GUARD_WITH_THIS();
+
+    auto ret = esp_vfs_littlefs_unregister(BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_PARTITION_LABEL);
+    BROOKESIA_CHECK_ESP_ERR_EXECUTE(ret, {}, { BROOKESIA_LOGE("Failed to deinitialize LittleFS"); });
 }
 #endif
 

@@ -1,5 +1,8 @@
 ## IDF Component Manager Manifest File
 dependencies:
+  joltwallet/littlefs:
+    version: "~=1.20.0"
+
   espressif/brookesia_service_audio:
     version: "*"
     override_path: "../../../../service/brookesia_service_audio"

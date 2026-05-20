@@ -18,6 +18,9 @@ private:
     bool init_spiffs();
     void deinit_spiffs();
 
+    bool init_littlefs();
+    void deinit_littlefs();
+
     bool init_sdcard();
     void deinit_sdcard();
 };

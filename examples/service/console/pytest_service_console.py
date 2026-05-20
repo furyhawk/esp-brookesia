@@ -294,7 +294,7 @@ TUTORIAL_COMMANDS.extend([
 TUTORIAL_COMMANDS.extend([
     ('svc_subscribe Audio PlayStateChanged',
      [b'Subscribed successfully'], 'Audio: Subscribe play state changed event', 4000, 0),
-    ('svc_call Audio PlayUrl {"Url":"file://spiffs/example.mp3"}',
+    ('svc_call Audio PlayUrl {"Url":"file://littlefs/example.mp3"}',
      [b'State: Playing', b'State: Idle'], 'Audio: Play local audio', 20000, 2000),
     ('svc_call Audio PlayUrl {"Url":"https://dl.espressif.com/AE/esp-brookesia/example.mp3"}',
      [b'State: Playing', b'State: Idle'], 'Audio: Play network audio', 30000, 2000),

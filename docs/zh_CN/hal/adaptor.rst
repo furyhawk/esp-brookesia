@@ -45,7 +45,7 @@ HAL 适配
      - LEDC 背光、LCD 面板、I2C 触摸可分别开关；分别依赖 ``ESP_BOARD_DEV_LEDC_CTRL_SUPPORT``、``ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT``、``ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT``。
    * - ``StorageDevice`` (``"Storage"``)
      - ``StorageFsIface`` (``GENERAL_FS_IMPL_NAME``)
-     - 通用文件系统实现，支持 SPIFFS（依赖 ``ESP_BOARD_DEV_FS_SPIFFS_SUPPORT``）与 SD 卡（FATFS，依赖 ``ESP_BOARD_DEV_FS_FAT_SUPPORT``），按 Kconfig 启用。
+     - 通用文件系统实现，支持 LittleFS、SPIFFS（依赖 ``ESP_BOARD_DEV_FS_SPIFFS_SUPPORT``）与 SD 卡（FATFS，依赖 ``ESP_BOARD_DEV_FS_FAT_SUPPORT``），按 Kconfig 启用。
    * - ``PowerDevice`` (``"Power"``)
      - ``PowerBatteryIface`` (``BATTERY_IMPL_NAME``)
      - 电池与充电器能力实现，支持 ADC 电压估算或 AXP2101 电源管理芯片实现；可查询电量、电压、电源来源、充电状态，并在底层支持时控制充电配置。

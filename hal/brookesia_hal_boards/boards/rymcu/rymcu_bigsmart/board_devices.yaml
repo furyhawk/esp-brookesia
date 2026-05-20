@@ -175,12 +175,3 @@ devices:
       default_percent: 100
     peripherals:
       - name: ledc_backlight
-
-  - name: fs_spiffs
-    type: fs_spiffs
-    version: 1.0.0
-    config:
-      base_path: "/spiffs"
-      partition_label: "spiffs_data"
-      max_files: 5
-      format_if_mount_failed: false

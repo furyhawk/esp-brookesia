@@ -10,3 +10,10 @@ cmake_minimum_required(VERSION 3.16)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(example_service_audio)
+
+idf_component_get_property(gmf_video_lib espressif__gmf_video COMPONENT_LIB)
+if(gmf_video_lib)
+    target_compile_definitions(${gmf_video_lib} PRIVATE
+        PPA_SRM_COLOR_MODE_YUV422=PPA_SRM_COLOR_MODE_YUV422_YUYV
+    )
+endif()

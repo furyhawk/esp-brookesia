@@ -2,7 +2,7 @@ set(COMPONENT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(COMPONENT_INCLUDE_DIRS ${COMPONENT_DIR}/include)
 set(COMPONENT_PRIVATE_INCLUDE_DIRS ${COMPONENT_DIR}/src)
 set(COMPONENT_EMBED_TXTFILES "")
-set(COMPONENT_PRIV_REQUIRES "esp_wifi nvs_flash esp_event esp_http_server esp_netif lwip")
+set(COMPONENT_PRIV_REQUIRES "esp_wifi nvs_flash esp_event esp_http_server esp_netif lwip littlefs")
 set(COMPONENT_SRCS_CPP "")
 
 file(GLOB_RECURSE PRIVATE_SRCS_CPP ${COMPONENT_DIR}/src/private/*.cpp)

@@ -17,4 +17,4 @@ if(DEFINED ENV{CI_TEST_WIFI_2_4G_AP1_PSW})
     )
 endif()
 
-spiffs_create_partition_image(spiffs_data ../spiffs FLASH_IN_PROJECT)
+littlefs_create_partition_image(littlefs_data ../littlefs FLASH_IN_PROJECT)

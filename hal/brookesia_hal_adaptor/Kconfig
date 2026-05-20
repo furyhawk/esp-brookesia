@@ -264,23 +264,43 @@ menu "ESP-Brookesia: Hal Adaptor Configurations"
     if BROOKESIA_HAL_ADAPTOR_ENABLE_STORAGE_DEVICE
         menuconfig BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_GENERAL_FS_IMPL
             bool "General FS"
-            default y
+            default n
             help
                 Enable the storage general file system.
-
-        menuconfig BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_KV_IMPL
-            bool "Key-value storage"
-            default y
-            help
-                Enable the storage key-value implementation backed by ESP-IDF NVS.
 
         if BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_GENERAL_FS_IMPL
             config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SPIFFS
                 bool "SPIFFS"
                 depends on ESP_BOARD_DEV_FS_SPIFFS_SUPPORT
-                default y
+                default n
                 help
                     Enable the SPIFFS.
+
+            config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_LITTLEFS
+                bool "LittleFS"
+                default n
+                help
+                    Enable the LittleFS.
+
+            if BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_LITTLEFS
+                config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_BASE_PATH
+                    string "LittleFS base path"
+                    default "/littlefs"
+                    help
+                        Base path used to mount the LittleFS filesystem.
+
+                config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_PARTITION_LABEL
+                    string "LittleFS partition label"
+                    default "littlefs_data"
+                    help
+                        Partition label used to mount the LittleFS filesystem.
+
+                config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_LITTLEFS_FORMAT_IF_MOUNT_FAILED
+                    bool "Format LittleFS if mount failed"
+                    default n
+                    help
+                        Format the LittleFS partition when mount fails.
+            endif
 
             config BROOKESIA_HAL_ADAPTOR_STORAGE_GENERAL_FS_ENABLE_SDCARD
                 bool "SD card (FATFS)"
@@ -289,6 +309,12 @@ menu "ESP-Brookesia: Hal Adaptor Configurations"
                 help
                     Enable the SD card (FATFS).
         endif
+
+        menuconfig BROOKESIA_HAL_ADAPTOR_STORAGE_ENABLE_KV_IMPL
+            bool "Key-value storage"
+            default n
+            help
+                Enable the storage key-value implementation backed by ESP-IDF NVS.
     endif
 
     menuconfig BROOKESIA_HAL_ADAPTOR_ENABLE_POWER_DEVICE

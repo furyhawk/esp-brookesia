@@ -45,7 +45,7 @@ The component ships multiple board-level devices, each registered as a singleton
      - LEDC backlight, LCD panel, and I2C touch can each be disabled; require ``ESP_BOARD_DEV_LEDC_CTRL_SUPPORT``, ``ESP_BOARD_DEV_DISPLAY_LCD_SUPPORT``, ``ESP_BOARD_DEV_LCD_TOUCH_I2C_SUPPORT`` respectively.
    * - ``StorageDevice`` (``"Storage"``)
      - ``StorageFsIface`` (``GENERAL_FS_IMPL_NAME``)
-     - General filesystem implementation; supports SPIFFS (``ESP_BOARD_DEV_FS_SPIFFS_SUPPORT``) and SD card / FATFS (``ESP_BOARD_DEV_FS_FAT_SUPPORT``), enabled per Kconfig.
+     - General filesystem implementation; supports LittleFS, SPIFFS (``ESP_BOARD_DEV_FS_SPIFFS_SUPPORT``), and SD card / FATFS (``ESP_BOARD_DEV_FS_FAT_SUPPORT``), enabled per Kconfig.
    * - ``PowerDevice`` (``"Power"``)
      - ``PowerBatteryIface`` (``BATTERY_IMPL_NAME``)
      - Battery and charger capability implementation. Supports ADC voltage estimation or AXP2101 power-management-chip backends; can query level, voltage, power source, and charge state, and control charger configuration when supported by the underlying hardware.

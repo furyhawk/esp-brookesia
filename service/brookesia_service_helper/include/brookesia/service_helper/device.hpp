@@ -285,9 +285,9 @@ private:
             .description = (boost::format("Get mounted storage file systems. Return type: JSON array<object>. Example: %1%")
             % BROOKESIA_DESCRIBE_JSON_SERIALIZE(std::vector<StorageFsInfo>({
                 {
-                    .fs_type = hal::StorageFsIface::FileSystemType::SPIFFS,
+                    .fs_type = hal::StorageFsIface::FileSystemType::LittleFS,
                     .medium_type = hal::StorageFsIface::MediumType::Flash,
-                    .mount_point = "/spiffs",
+                    .mount_point = "/littlefs",
                 },
                 {
                     .fs_type = hal::StorageFsIface::FileSystemType::FATFS,
