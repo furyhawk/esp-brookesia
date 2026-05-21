@@ -54,7 +54,7 @@ TEST_CASE("ServiceDevice board: storage query smoke test", "[service][device][bo
 
         DeviceHelper::StorageFsCapacity capacity = {};
         TEST_ASSERT_TRUE(BROOKESIA_DESCRIBE_FROM_JSON(capacity_result.value(), capacity));
-        TEST_ASSERT_GREATER_OR_EQUAL_UINT64(capacity.used_bytes, capacity.total_bytes);
+        TEST_ASSERT_GREATER_OR_EQUAL_UINT32(capacity.used_bytes, capacity.total_bytes);
         TEST_ASSERT_EQUAL_UINT32(capacity.total_bytes - capacity.used_bytes, capacity.free_bytes);
     }
 
