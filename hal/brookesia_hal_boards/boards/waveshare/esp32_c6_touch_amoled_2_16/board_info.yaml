@@ -1,0 +1,5 @@
+board: esp32_c6_touch_amoled_2_16
+chip: esp32c6
+version: 1.0.0
+description: "ESP32-C6-Touch-AMOLED-2.16 Development Board"
+manufacturer: "Waveshare"
