@@ -36,6 +36,10 @@
 #include "esp_xiaozhi_transport.h"
 #include "esp_xiaozhi_chat.h"
 
+#ifndef CONFIG_XIAOZHI_STACK_IN_PSRAM
+#define CONFIG_XIAOZHI_STACK_IN_PSRAM 0
+#endif
+
 #define ESP_XIAOZHI_CHAT_MAX_STRING_SIZE 256
 #define ESP_XIAOZHI_CHAT_AES_NONCE_SIZE 16
 #define ESP_XIAOZHI_CHAT_AES_KEY_SIZE 32

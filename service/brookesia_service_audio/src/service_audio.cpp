@@ -57,7 +57,11 @@ inline hal::AudioCodecPlayerIface::Config get_player_config()
 #else
         .bits = 16,
 #endif
-        .channels = CONFIG_AUDIO_SIMPLE_PLAYER_CH_CVT_DEST,
+#ifdef CONFIG_AUDIO_SIMPLE_PLAYER_CH_CVT_DEST
+    .channels = CONFIG_AUDIO_SIMPLE_PLAYER_CH_CVT_DEST,
+#else
+    .channels = 2,
+#endif
         .sample_rate = CONFIG_AUDIO_SIMPLE_PLAYER_RESAMPLE_DEST_RATE,
     };
     return config;
